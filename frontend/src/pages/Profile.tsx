@@ -153,12 +153,17 @@ export function Profile() {
       });
       
       const data = await response.json();
-      setProfile(data);
-      setSaved(true);
-      
-      setTimeout(() => setSaved(false), 3000);
+      if (response.ok) {
+        setProfile(data);
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      } else {
+        console.error('Error saving profile:', data.error);
+        alert(data.error || 'Error al guardar la configuración');
+      }
     } catch (error) {
       console.error('Error saving profile:', error);
+      alert('Error de conexión');
     }
     
     setSaving(false);

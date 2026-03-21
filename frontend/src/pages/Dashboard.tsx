@@ -472,6 +472,25 @@ export function Dashboard() {
           <Loader2 className="animate-spin text-primary" size={40} />
         </div>
       )}
+
+      <div className="mb-8">
+        <div className="text-center py-6 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-2xl">
+          <div className="inline-flex items-center gap-3">
+            <Heart className="text-pink-500 animate-pulse" size={28} />
+            <div>
+              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
+                🏠 {profile.family_name}
+              </h2>
+              <p className="text-gray-500 mt-1 flex items-center justify-center gap-2">
+                <span>💰</span>
+                Gestionando las finanzas con <span className="font-semibold text-primary">Family Agent</span>
+                <span>💖</span>
+              </p>
+            </div>
+            <Heart className="text-pink-500 animate-pulse" size={28} />
+          </div>
+        </div>
+      </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
@@ -548,25 +567,6 @@ export function Dashboard() {
           <h3 className="text-lg font-semibold">Evolución Mensual (Últimos 6 meses)</h3>
         </div>
         <MonthlyChart data={monthlyData} />
-      </div>
-
-      <div className="mt-12 mb-8">
-        <div className="text-center py-8">
-          <div className="inline-flex items-center gap-3 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-2xl px-8 py-4 shadow-sm">
-            <Heart className="text-pink-500 animate-pulse" size={32} />
-            <div>
-              <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-                🏠 {profile.family_name}
-              </h2>
-              <p className="text-gray-500 mt-1 flex items-center justify-center gap-2">
-                <span className="text-lg">💰</span>
-                Gestionando las finanzas familiares con <span className="font-semibold text-primary">Family Agent</span>
-                <span className="text-lg">💖</span>
-              </p>
-            </div>
-            <Heart className="text-pink-500 animate-pulse" size={32} />
-          </div>
-        </div>
       </div>
 
       <footer className="mt-12 pt-8 border-t border-gray-200">
