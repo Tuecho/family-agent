@@ -1938,6 +1938,11 @@ async function sendNotificationEmail(settings, events, budgets, profile) {
     return { success: false, reason: 'Email notifications not configured' };
   }
 
+  const profileData = profile || { name: 'Usuario', family_name: 'Mi Familia' };
+  
+  if (!events || !Array.isArray(events)) events = [];
+  if (!budgets || !Array.isArray(budgets)) budgets = [];
+
   const today = new Date();
   const nextWeek = new Date(today);
   nextWeek.setDate(nextWeek.getDate() + 7);
@@ -1984,7 +1989,7 @@ async function sendNotificationEmail(settings, events, budgets, profile) {
     `;
   }
 
-  const familyName = profile.family_name || 'Familia';
+  const familyName = profileData.family_name || 'Familia';
   
   const dateRangeStr = `${today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${nextWeek.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
@@ -2243,7 +2248,7 @@ app.post('/api/notifications/test', async (req, res) => {
   const testEvents = [
     { title: 'Ejemplo: Cita médica', description: 'Esta es una notificación de prueba', start_time: '10:00', end_time: '11:00' }
   ];
-  const testProfile = { name: 'Usuario de prueba' };
+  const testProfile = { name: 'Usuario de prueba', family_name: 'Mi Familia' };
 
   const result = await sendNotificationEmail(
     { ...req.body, email_enabled: 1 },
