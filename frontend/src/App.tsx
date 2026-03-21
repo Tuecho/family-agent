@@ -7,12 +7,14 @@ import { Budgets } from './pages/Budgets';
 import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
 import { AdminPage } from './pages/AdminPage';
+import { FAQ } from './pages/FAQ';
+import { About } from './pages/About';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
 function AppContent() {
-  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin'>('dashboard');
+  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin' | 'faq' | 'about'>('dashboard');
   const { isAuthenticated, isAdmin, login, logout } = useAuth();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -84,6 +86,8 @@ function AppContent() {
           {activePage === 'profile' && <Profile />}
           {activePage === 'agenda' && <Agenda />}
           {activePage === 'admin' && isAdmin && <AdminPage />}
+          {activePage === 'faq' && <FAQ />}
+          {activePage === 'about' && <About />}
         </div>
       </main>
 

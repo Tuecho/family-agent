@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Bot, Target, MessageCircle, User, Shield } from 'lucide-react';
+import { Home, Wallet, Bot, Target, MessageCircle, User, Shield, HelpCircle, Info } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -11,8 +11,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin') => void;
+  activePage: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin' | 'faq' | 'about';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin' | 'faq' | 'about') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -137,6 +137,34 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               </button>
             </li>
           )}
+          <li>
+            <button
+              onClick={() => onNavigate('faq')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'faq'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'FAQ'}
+            >
+              <HelpCircle size={18} />
+              {isExpanded && <span className="text-sm">FAQ</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => onNavigate('about')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'about'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Acerca de'}
+            >
+              <Info size={18} />
+              {isExpanded && <span className="text-sm">Acerca de</span>}
+            </button>
+          </li>
         </ul>
       </nav>
 
