@@ -1354,7 +1354,12 @@ app.put('/api/invitations/:id/accept', (req, res) => {
   
   const { id } = req.params;
   
-  const inviteStmt = db.prepare('SELECT * FROM invitations WHERE id = ? AND to_username = (SELECT username FROM auth_user WHERE id = ?)');
+  const inviteStmt = db.prepare(`
+    SELECT i.*, u.username as from_username 
+    FROM invitations i 
+    JOIN auth_user u ON i.from_user_id = u.id 
+    WHERE i.id = ? AND i.to_username = (SELECT username FROM auth_user WHERE id = ?)
+  `);
   inviteStmt.bind([id, userId]);
   let invite = null;
   if (inviteStmt.step()) invite = inviteStmt.getAsObject();
@@ -1363,14 +1368,8 @@ app.put('/api/invitations/:id/accept', (req, res) => {
   if (!invite) return res.status(404).json({ error: 'Invitación no encontrada' });
   
   try {
-    const fromStmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
-    fromStmt.bind([invite.from_username]);
-    let fromId = null;
-    if (fromStmt.step()) fromId = fromStmt.getAsObject().id;
-    fromStmt.free();
-    
-    if (fromId) {
-      db.run('INSERT OR IGNORE INTO user_shares (owner_id, shared_with_id) VALUES (?, ?)', [fromId, userId]);
+    if (invite.from_username) {
+      db.run('INSERT OR IGNORE INTO user_shares (owner_id, shared_with_id) VALUES (?, ?)', [invite.from_user_id, userId]);
     }
     db.run('UPDATE invitations SET status = "accepted" WHERE id = ?', [id]);
     saveDb();

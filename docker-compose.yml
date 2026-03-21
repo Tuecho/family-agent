@@ -5,11 +5,6 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    environment:
-      - VITE_API_URL=
     networks:
       - proxy-network
     restart: unless-stopped
@@ -28,20 +23,13 @@ services:
       - proxy-network
     restart: unless-stopped
 
-  duckdns:
-    image: linuxserver/duckdns
-    container_name: duckdns
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Madrid
-      - SUBDOMAINS=contafamilia
-      - TOKEN=${DUCKDNS_TOKEN}
-    volumes:
-      - ./duckdns:/config
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    restart: unless-stopped
     networks:
       - proxy-network
-    restart: unless-stopped
 
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:latest
