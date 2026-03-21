@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  @media (max-width: 768px) {
+    html {
+      font-size: 14px;
+    }
+  }
+}
+
+body {
+  background-color: #F6F4EF;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden;
+}
+
+@layer utilities {
+  .sidebar-mobile-hidden {
+    @apply md:relative;
+  }
+  
+  .main-content-mobile {
+    @apply ml-0 md:ml-16 lg:ml-60;
+  }
+}
+
+@layer components {
+  .btn-mobile-full {
+    @apply w-full py-3 text-base md:py-2 md:text-sm;
+  }
+  
+  .card-mobile {
+    @apply p-4 text-base md:p-6 md:text-sm;
+  }
+  
+  .input-mobile {
+    @apply text-base py-3 px-4 md:py-2 md:px-3 md:text-sm;
+  }
+  
+  .table-mobile-scroll {
+    @apply overflow-x-auto -mx-4 px-4;
+  }
+  
+  .table-mobile-scroll table {
+    @apply min-w-full text-sm;
+  }
+}

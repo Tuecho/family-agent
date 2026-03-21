@@ -1,0 +1,73 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/server.js:/app/server.js
+      - ./backend/node_modules:/app/node_modules
+      - db-data:/app
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  duckdns:
+    image: linuxserver/duckdns
+    container_name: duckdns
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+      - SUBDOMAINS=contafamilia
+      - TOKEN=${DUCKDNS_TOKEN}
+    volumes:
+      - ./duckdns:/config
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+  nginx-proxy-manager:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    ports:
+      - "80:80"
+      - "443:443"
+      - "81:81"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Madrid
+    volumes:
+      - ./npm/data:/data
+      - ./npm/letsencrypt:/etc/letsencrypt
+    networks:
+      - proxy-network
+    restart: unless-stopped
+
+volumes:
+  db-data:
+    name: family-agent-db
+  npm-data:
+  npm-letsencrypt:
+
+networks:
+  proxy-network:
+    name: proxy-network
+    external: false
