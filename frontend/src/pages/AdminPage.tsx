@@ -77,17 +77,25 @@ export function AdminPage() {
   };
 
   const handleRoleChange = async (user: User) => {
+    if (user.is_admin && users.filter(u => u.is_admin).length <= 1) {
+      alert('No puedes quitar el último administrador');
+      return;
+    }
     const newRole = user.is_admin ? 'quitarle el rol de admin' : 'hacerle admin';
     if (!window.confirm(`¿${newRole.charAt(0).toUpperCase() + newRole.slice(1)} a ${user.username}?`)) return;
 
     setActionLoading(user.id);
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/auth/admin/user/${user.id}/role`, {
+      const response = await fetch(`${API_URL}/api/auth/admin/user/${user.id}/role`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ is_admin: !user.is_admin })
       });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Error al cambiar rol');
+      }
       fetchUsers();
     } catch (error) {
       console.error('Error changing role:', error);
@@ -226,7 +234,7 @@ export function AdminPage() {
 
                       <button
                         onClick={() => handleRoleChange(user)}
-                        disabled={actionLoading === user.id}
+                        disabled={actionLoading === user.id || (user.is_admin && users.filter(u => u.is_admin).length <= 1)}
                         className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
                           user.is_admin
                             ? 'text-purple-600 hover:bg-purple-50'

@@ -476,6 +476,16 @@ app.post('/api/auth/admin/user/:id/role', (req, res) => {
   if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
   if (admin.id === userId) return res.status(400).json({ error: 'No puedes cambiarte el rol a ti mismo' });
 
+  if (!is_admin) {
+    const countStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE is_admin = 1');
+    countStmt.step();
+    const result = countStmt.getAsObject();
+    countStmt.free();
+    if (result.count <= 1) {
+      return res.status(400).json({ error: 'No puedes quitar el último administrador' });
+    }
+  }
+
   try {
     const updateStmt = db.prepare('UPDATE auth_user SET is_admin = ? WHERE id = ?');
     updateStmt.run([is_admin ? 1 : 0, userId]);
