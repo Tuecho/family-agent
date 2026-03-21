@@ -137,7 +137,6 @@ export function Profile() {
 
   useEffect(() => {
     fetchInvitations();
-    fetchSharedUsers();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {

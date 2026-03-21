@@ -1172,19 +1172,22 @@ app.get('/api/profile', (req, res) => {
   stmt.free();
   
   if (!profile) {
-    stmt = db.prepare('INSERT INTO user_profile (owner_id, name) VALUES (?, ?)');
-    stmt.run([userId, 'Usuario']);
-    stmt.free();
-    saveDb();
-    
-    stmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
-    stmt.bind([userId]);
-    stmt.step();
-    profile = stmt.getAsObject();
-    stmt.free();
+    try {
+      stmt = db.prepare('INSERT INTO user_profile (owner_id, name) VALUES (?, ?)');
+      stmt.run([userId, 'Usuario']);
+      stmt.free();
+      saveDb();
+      
+      stmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
+      stmt.bind([userId]);
+      if (stmt.step()) profile = stmt.getAsObject();
+      stmt.free();
+    } catch (e) {
+      console.error('Error creating profile:', e);
+    }
   }
   
-  res.json(profile);
+  res.json(profile || { id: userId, name: 'Usuario', family_name: 'Mi Familia', currency: 'EUR' });
 });
 
 app.put('/api/profile', (req, res) => {
