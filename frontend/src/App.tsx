@@ -8,7 +8,7 @@ import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
 import { AdminPage } from './pages/AdminPage';
 import { ChatWidget } from './components/ChatWidget';
-import { Login, useAuth } from './components/Auth';
+import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
 function AppContent() {
@@ -93,5 +93,9 @@ function AppContent() {
 }
 
 export default function App() {
-  return <AppContent />;
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }

@@ -425,34 +425,56 @@ export function AdminUsers() {
   );
 }
 
-export function useAuth() {
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+
+interface AuthContextType {
+  isAuthenticated: boolean;
+  isAdmin: boolean;
+  login: () => void;
+  logout: () => void;
+  getAuth: () => { username: string; password: string } | null;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+function getStoredAuth() {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return { authenticated: false, isAdmin: false };
+  const parsed = JSON.parse(stored);
+  return parsed;
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return false;
-    const parsed = JSON.parse(stored);
-    return !!parsed.authenticated;
+    return getStoredAuth().authenticated;
   });
 
   const [isAdmin, setIsAdmin] = useState(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return false;
-    const parsed = JSON.parse(stored);
-    return !!parsed.isAdmin;
+    return getStoredAuth().isAdmin;
   });
 
+  useEffect(() => {
+    const checkAuth = () => {
+      const auth = getStoredAuth();
+      setIsAuthenticated(auth.authenticated);
+      setIsAdmin(auth.isAdmin);
+    };
+    
+    window.addEventListener('storage', checkAuth);
+    return () => window.removeEventListener('storage', checkAuth);
+  }, []);
+
   const login = () => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      setIsAdmin(!!parsed.isAdmin);
-    }
-    setIsAuthenticated(true);
+    const stored = getStoredAuth();
+    setIsAdmin(!!stored.isAdmin);
+    setIsAuthenticated(!!stored.authenticated);
   };
 
   const logout = () => {
     localStorage.removeItem(STORAGE_KEY);
     setIsAuthenticated(false);
     setIsAdmin(false);
+    window.dispatchEvent(new Event('storage'));
   };
 
   const getAuth = () => {
@@ -464,5 +486,17 @@ export function useAuth() {
     return null;
   };
 
-  return { isAuthenticated, isAdmin, login, logout, getAuth };
+  return (
+    <AuthContext.Provider value={{ isAuthenticated, isAdmin, login, logout, getAuth }}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within AuthProvider');
+  }
+  return context;
 }
