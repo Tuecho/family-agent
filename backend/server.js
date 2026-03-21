@@ -127,6 +127,7 @@ async function initDb() {
   try { db.run(`ALTER TABLE budgets ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE expense_concepts ADD COLUMN owner_id INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   
   db.run(`
     INSERT OR IGNORE INTO expense_concepts (key, owner_id, label) VALUES
@@ -451,6 +452,33 @@ app.post('/api/auth/admin/user/:id/block', (req, res) => {
   try {
     const updateStmt = db.prepare('UPDATE auth_user SET status = ? WHERE id = ?');
     updateStmt.run([blocked ? 'blocked' : 'approved', userId]);
+    updateStmt.free();
+    saveDb();
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error actualizando usuario' });
+  }
+});
+
+app.post('/api/auth/admin/user/:id/role', (req, res) => {
+  const { username, password } = req.headers || {};
+  const userId = parseInt(req.params.id);
+  const { is_admin } = req.body;
+
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  if (admin.id === userId) return res.status(400).json({ error: 'No puedes cambiarte el rol a ti mismo' });
+
+  try {
+    const updateStmt = db.prepare('UPDATE auth_user SET is_admin = ? WHERE id = ?');
+    updateStmt.run([is_admin ? 1 : 0, userId]);
     updateStmt.free();
     saveDb();
     return res.json({ success: true });
@@ -957,12 +985,11 @@ app.get('/api/budgets/with-spending', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { month, year } = req.query;
-  
-  const budgetsStmt = db.prepare('SELECT * FROM budgets WHERE month = ? AND year = ?');
-  budgetsStmt.bind([parseInt(month), parseInt(year)]);
-  
   const accessibleIds = getAccessibleUserIds(userId);
   const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const budgetsStmt = db.prepare(`SELECT * FROM budgets WHERE month = ? AND year = ? AND owner_id IN (${placeholders})`);
+  budgetsStmt.bind([parseInt(month), parseInt(year), ...accessibleIds]);
   
   const budgets = [];
   while (budgetsStmt.step()) {

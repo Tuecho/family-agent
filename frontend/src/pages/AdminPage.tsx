@@ -76,6 +76,25 @@ export function AdminPage() {
     setActionLoading(null);
   };
 
+  const handleRoleChange = async (user: User) => {
+    const newRole = user.is_admin ? 'quitarle el rol de admin' : 'hacerle admin';
+    if (!window.confirm(`¿${newRole.charAt(0).toUpperCase() + newRole.slice(1)} a ${user.username}?`)) return;
+
+    setActionLoading(user.id);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/auth/admin/user/${user.id}/role`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ is_admin: !user.is_admin })
+      });
+      fetchUsers();
+    } catch (error) {
+      console.error('Error changing role:', error);
+    }
+    setActionLoading(null);
+  };
+
   const handleChangePassword = async () => {
     if (!showPasswordModal || !newPassword.trim()) {
       setPasswordError('Ingresa una contraseña');
@@ -202,6 +221,23 @@ export function AdminPage() {
                           <Unlock size={16} />
                         ) : (
                           <Lock size={16} />
+                        )}
+                      </button>
+
+                      <button
+                        onClick={() => handleRoleChange(user)}
+                        disabled={actionLoading === user.id}
+                        className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                          user.is_admin
+                            ? 'text-purple-600 hover:bg-purple-50'
+                            : 'text-gray-400 hover:bg-purple-50 hover:text-purple-600'
+                        }`}
+                        title={user.is_admin ? 'Quitar admin' : 'Hacer admin'}
+                      >
+                        {actionLoading === user.id ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Shield size={16} />
                         )}
                       </button>
 
