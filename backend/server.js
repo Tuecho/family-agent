@@ -131,6 +131,19 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_timezone TEXT DEFAULT 'Europe/Madrid'`); } catch(e) {}
+  
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      title TEXT NOT NULL,
+      description TEXT,
+      completed INTEGER DEFAULT 0,
+      due_date TEXT,
+      priority TEXT DEFAULT 'normal',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
 
   saveDb();
