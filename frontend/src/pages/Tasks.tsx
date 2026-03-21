@@ -51,10 +51,14 @@ export function Tasks() {
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const dataToSend = {
+        ...formData,
+        priority: modalType === 'task' ? (formData.priority || 'medium') : 'normal'
+      };
       await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(formData)
+        body: JSON.stringify(dataToSend)
       });
       setFormData({ title: '', description: '', due_date: '', priority: 'normal' });
       setShowModal(false);
@@ -66,7 +70,12 @@ export function Tasks() {
 
   const openModal = (type: 'shopping' | 'task') => {
     setModalType(type);
-    setFormData({ title: '', description: '', due_date: '', priority: 'normal' });
+    setFormData({ 
+      title: '', 
+      description: '', 
+      due_date: '', 
+      priority: type === 'task' ? 'medium' : 'normal' 
+    });
     setShowModal(true);
   };
 
@@ -110,6 +119,11 @@ export function Tasks() {
 
   const shoppingItems = tasks.filter(t => !t.due_date && t.priority === 'normal');
   const familyTasks = tasks.filter(t => t.due_date || t.priority !== 'normal');
+  
+  const getTaskType = (task: Task) => {
+    if (task.due_date || task.priority !== 'normal') return 'family';
+    return 'shopping';
+  };
   
   const pendingShopping = shoppingItems.filter(t => !t.completed);
   const completedShopping = shoppingItems.filter(t => t.completed);
