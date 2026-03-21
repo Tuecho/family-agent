@@ -150,7 +150,7 @@ export function Accounting() {
                         <Pencil size={18} />
                       </button>
                       <button
-                        onClick={() => deleteTransaction(t.id)}
+                        onClick={() => { if (window.confirm('¿Eliminar esta transacción?')) deleteTransaction(t.id); }}
                         className="text-gray-400 hover:text-expense transition-colors"
                         title="Eliminar"
                       >

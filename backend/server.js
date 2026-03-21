@@ -857,6 +857,20 @@ app.put('/api/profile', (req, res) => {
   }
 });
 
+app.post('/api/reset', (req, res) => {
+  try {
+    db.run('DELETE FROM transactions');
+    db.run('DELETE FROM budgets');
+    db.run('DELETE FROM family_events');
+    db.run('DELETE FROM expense_concepts');
+    saveDb();
+    res.json({ success: true, message: 'Todos los datos han sido eliminados' });
+  } catch (error) {
+    console.error('Error resetting data:', error);
+    res.status(500).json({ error: 'Error al resetear los datos' });
+  }
+});
+
 
 import multer from 'multer';
 import XLSX from 'xlsx';

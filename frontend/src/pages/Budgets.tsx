@@ -147,6 +147,7 @@ export function Budgets() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm('¿Eliminar este presupuesto?')) return;
     try {
       await fetch(`${API_URL}/api/budgets/${id}`, {
         method: 'DELETE'

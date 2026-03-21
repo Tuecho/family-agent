@@ -228,21 +228,18 @@ export function NotificationSettings() {
                   <li>Copia la contraseña de 16 caracteres</li>
                 </ol>
               </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleTest}
-                  disabled={testing}
-                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
-                >
-                  {testing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                  Enviar email de prueba
-                </button>
-              </div>
             </>
           )}
 
-          <div className="flex justify-end pt-4 border-t">
+          <div className="flex justify-between items-center pt-4 border-t">
+            <button
+              onClick={handleTest}
+              disabled={testing}
+              className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+            >
+              {testing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+              Enviar email de prueba
+            </button>
             <button
               onClick={handleSave}
               disabled={saving}

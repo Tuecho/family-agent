@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2 } from 'lucide-react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
+import { useAuth } from '../components/Auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -15,6 +16,7 @@ interface Profile {
 }
 
 export function Profile() {
+  const { logout } = useAuth();
   const [profile, setProfile] = useState<Profile>({
     id: 1,
     name: '',
@@ -78,6 +80,27 @@ export function Profile() {
     }
   };
 
+  const handleResetData = async () => {
+    const confirm = window.confirm('¿Estás seguro? Se eliminarán todas las transacciones, presupuestos, eventos y conceptos.\n\nEsta acción no se puede deshacer.');
+    if (!confirm) return;
+
+    const doubleConfirm = window.confirm('¿Realmente quieres eliminar TODOS los datos?\n\nPulsa Aceptar para confirmar.');
+    if (!doubleConfirm) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/reset`, { method: 'POST' });
+      if (response.ok) {
+        alert('Todos los datos han sido eliminados.');
+        window.location.reload();
+      } else {
+        alert('Error al eliminar los datos.');
+      }
+    } catch (error) {
+      console.error('Error resetting data:', error);
+      alert('Error de conexión.');
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-8 flex items-center justify-center">
@@ -88,7 +111,16 @@ export function Profile() {
 
   return (
     <div className="p-8">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">Perfil</h2>
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-2xl font-bold text-gray-800">Perfil</h2>
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <LogOut size={18} />
+          <span className="text-sm font-medium">Cerrar sesión</span>
+        </button>
+      </div>
 
       <div className="max-w-2xl">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
@@ -221,6 +253,27 @@ export function Profile() {
 
           <div className="mt-8">
             <NotificationSettings />
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="text-red-500 flex-shrink-0 mt-0.5" size={20} />
+                <div className="flex-1">
+                  <h4 className="font-semibold text-red-800">Zona de peligro</h4>
+                  <p className="text-sm text-red-600 mt-1">
+                    Esta acción eliminará permanentemente todos los datos: transacciones, presupuestos, eventos y conceptos de gasto.
+                  </p>
+                  <button
+                    onClick={handleResetData}
+                    className="mt-3 flex items-center gap-2 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition-colors text-sm"
+                  >
+                    <Trash2 size={16} />
+                    Vaciar todos los datos
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
