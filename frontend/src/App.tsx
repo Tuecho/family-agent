@@ -6,8 +6,9 @@ import { ChatBotPage } from './pages/ChatBotPage';
 import { Budgets } from './pages/Budgets';
 import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
+import { AdminPage } from './pages/AdminPage';
 import { ChatWidget } from './components/ChatWidget';
-import { Login, useAuth, AdminUsers } from './components/Auth';
+import { Login, useAuth } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
 function AppContent() {
@@ -82,7 +83,7 @@ function AppContent() {
           {activePage === 'chatbot' && <ChatBotPage />}
           {activePage === 'profile' && <Profile />}
           {activePage === 'agenda' && <Agenda />}
-          {activePage === 'admin' && isAdmin && <AdminUsers />}
+          {activePage === 'admin' && isAdmin && <AdminPage />}
         </div>
       </main>
 

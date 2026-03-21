@@ -373,7 +373,7 @@ app.get('/api/auth/admin/users', (req, res) => {
 
   if (!user || !user.is_admin) return res.status(403).json({ error: 'Solo administradores' });
 
-  const usersStmt = db.prepare('SELECT id, username, status, created_at FROM auth_user ORDER BY created_at DESC');
+  const usersStmt = db.prepare('SELECT id, username, is_admin, status, created_at FROM auth_user ORDER BY created_at DESC');
   const users = [];
   while (usersStmt.step()) {
     users.push(usersStmt.getAsObject());
@@ -430,6 +430,89 @@ app.post('/api/auth/admin/reject/:id', (req, res) => {
     return res.json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: 'Error actualizando usuario' });
+  }
+});
+
+app.post('/api/auth/admin/user/:id/block', (req, res) => {
+  const { username, password } = req.headers || {};
+  const userId = parseInt(req.params.id);
+  const { blocked } = req.body;
+
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  try {
+    const updateStmt = db.prepare('UPDATE auth_user SET status = ? WHERE id = ?');
+    updateStmt.run([blocked ? 'blocked' : 'approved', userId]);
+    updateStmt.free();
+    saveDb();
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error actualizando usuario' });
+  }
+});
+
+app.post('/api/auth/admin/user/:id/password', (req, res) => {
+  const { username, password } = req.headers || {};
+  const userId = parseInt(req.params.id);
+  const { new_password } = req.body;
+
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+  if (!new_password || new_password.length < 4) return res.status(400).json({ error: 'Contraseña muy corta' });
+
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  try {
+    const salt = Math.random().toString(36).substring(2);
+    const hash = hashPassword(new_password, salt);
+    const updateStmt = db.prepare('UPDATE auth_user SET password_hash = ?, salt = ? WHERE id = ?');
+    updateStmt.run([hash, salt, userId]);
+    updateStmt.free();
+    saveDb();
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error cambiando contraseña' });
+  }
+});
+
+app.delete('/api/auth/admin/user/:id', (req, res) => {
+  const { username, password } = req.headers || {};
+  const userId = parseInt(req.params.id);
+
+  if (!username || !password) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT id, is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  if (admin.id === userId) return res.status(400).json({ error: 'No puedes eliminarte a ti mismo' });
+
+  try {
+    db.run('DELETE FROM transactions WHERE owner_id = ?', [userId]);
+    db.run('DELETE FROM budgets WHERE owner_id = ?', [userId]);
+    db.run('DELETE FROM family_events WHERE owner_id = ?', [userId]);
+    db.run('DELETE FROM user_shares WHERE owner_id = ? OR shared_with_id = ?', [userId, userId]);
+    db.run('DELETE FROM auth_user WHERE id = ?', [userId]);
+    saveDb();
+    return res.json({ success: true });
+  } catch (error) {
+    return res.status(500).json({ error: 'Error eliminando usuario' });
   }
 });
 
