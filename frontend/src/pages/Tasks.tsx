@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, Calendar, AlertCircle, Filter } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, Trash } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -19,13 +19,10 @@ export function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'completed'>('all');
   
   const [formData, setFormData] = useState({
     title: '',
-    description: '',
-    due_date: '',
-    priority: 'normal'
+    description: ''
   });
 
   useEffect(() => {
@@ -53,9 +50,9 @@ export function Tasks() {
       await fetch(`${API_URL}/api/tasks`, {
         method: 'POST',
         headers,
-        body: JSON.stringify(formData)
+        body: JSON.stringify({ ...formData, priority: 'normal' })
       });
-      setFormData({ title: '', description: '', due_date: '', priority: 'normal' });
+      setFormData({ title: '', description: '' });
       setShowModal(false);
       fetchTasks();
     } catch (error) {
@@ -74,7 +71,6 @@ export function Tasks() {
   };
 
   const deleteTask = async (id: number) => {
-    if (!window.confirm('¿Eliminar esta tarea?')) return;
     try {
       const headers = getAuthHeaders();
       await fetch(`${API_URL}/api/tasks/${id}`, { method: 'DELETE', headers });
@@ -84,226 +80,182 @@ export function Tasks() {
     }
   };
 
-  const filteredTasks = tasks.filter(task => {
-    if (filter === 'pending') return !task.completed;
-    if (filter === 'completed') return task.completed;
-    return true;
-  });
-
-  const pendingCount = tasks.filter(t => !t.completed).length;
-  const completedCount = tasks.filter(t => t.completed).length;
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'bg-red-100 text-red-700';
-      case 'medium': return 'bg-yellow-100 text-yellow-700';
-      default: return 'bg-gray-100 text-gray-600';
+  const clearCompleted = async () => {
+    const completedTasks = tasks.filter(t => t.completed);
+    for (const task of completedTasks) {
+      try {
+        const headers = getAuthHeaders();
+        await fetch(`${API_URL}/api/tasks/${task.id}`, { method: 'DELETE', headers });
+      } catch (error) {
+        console.error('Error deleting task:', error);
+      }
     }
+    fetchTasks();
   };
 
-  const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case 'high': return 'Alta';
-      case 'medium': return 'Media';
-      default: return 'Normal';
-    }
-  };
-
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return null;
-    const date = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    if (dateStr === today.toISOString().split('T')[0]) return 'Hoy';
-    if (dateStr === tomorrow.toISOString().split('T')[0]) return 'Mañana';
-    
-    return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-  };
-
-  const isOverdue = (dateStr: string | null) => {
-    if (!dateStr) return false;
-    const today = new Date().toISOString().split('T')[0];
-    return dateStr < today;
-  };
+  const pendingTasks = tasks.filter(t => !t.completed);
+  const completedTasks = tasks.filter(t => t.completed);
 
   return (
-    <div className="p-8">
+    <div className="p-4 md:p-8 max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800">Tareas Familiares</h2>
-          <p className="text-sm text-gray-500">
-            {pendingCount} pendientes · {completedCount} completadas
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/10 p-3 rounded-xl">
+            <ShoppingCart size={28} className="text-primary" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Lista de la Compra</h2>
+            <p className="text-sm text-gray-500">
+              {pendingTasks.length} productos por comprar
+            </p>
+          </div>
         </div>
         <button
           onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
+          className="flex items-center gap-2 bg-primary text-white px-4 py-2.5 rounded-lg hover:bg-primary/90 transition-colors shadow-sm"
         >
           <Plus size={20} />
-          Nueva Tarea
+          <span className="hidden sm:inline">Añadir</span>
         </button>
-      </div>
-
-      <div className="flex items-center gap-4 mb-6">
-        <Filter size={18} className="text-gray-400" />
-        <div className="flex gap-2">
-          {(['all', 'pending', 'completed'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                filter === f
-                  ? 'bg-primary text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {f === 'all' ? 'Todas' : f === 'pending' ? 'Pendientes' : 'Completadas'}
-            </button>
-          ))}
-        </div>
       </div>
 
       {loading ? (
         <div className="text-center py-12 text-gray-500">Cargando...</div>
-      ) : filteredTasks.length === 0 ? (
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <div className="text-5xl mb-4">📋</div>
-          <p className="text-gray-500">No hay tareas</p>
-          <p className="text-sm text-gray-400 mt-1">Crea una tarea para empezar</p>
+      ) : tasks.length === 0 ? (
+        <div className="text-center py-16 bg-white rounded-2xl border border-gray-200 shadow-sm">
+          <div className="text-6xl mb-4">🛒</div>
+          <p className="text-lg text-gray-600 font-medium">Tu lista está vacía</p>
+          <p className="text-sm text-gray-400 mt-1">Añade productos para empezar tu compra</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredTasks.map((task) => (
-            <div
-              key={task.id}
-              className={`bg-white rounded-lg border p-4 flex items-start gap-4 transition-all ${
-                task.completed ? 'opacity-60' : 'hover:shadow-md'
-              }`}
-            >
-              <button
-                onClick={() => toggleTask(task.id)}
-                className={`mt-1 flex-shrink-0 transition-colors ${
-                  task.completed ? 'text-green-500' : 'text-gray-300 hover:text-green-500'
-                }`}
-              >
-                {task.completed ? (
-                  <CheckCircle size={24} />
-                ) : (
-                  <Circle size={24} />
-                )}
-              </button>
+        <>
+          {pendingTasks.length > 0 && (
+            <div className="space-y-2 mb-8">
+              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
+                Por comprar ({pendingTasks.length})
+              </h3>
+              {pendingTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="bg-white rounded-xl border p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all group"
+                >
+                  <button
+                    onClick={() => toggleTask(task.id)}
+                    className="flex-shrink-0 w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center hover:border-green-500 hover:bg-green-50 transition-all"
+                  >
+                    <Circle size={20} className="text-gray-300 group-hover:text-green-500 transition-colors" />
+                  </button>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className={`font-medium ${task.completed ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-                    {task.title}
-                  </h3>
-                  <span className={`px-2 py-0.5 rounded text-xs ${getPriorityColor(task.priority)}`}>
-                    {getPriorityLabel(task.priority)}
-                  </span>
-                </div>
-                {task.description && (
-                  <p className="text-sm text-gray-500 mt-1">{task.description}</p>
-                )}
-                {task.due_date && (
-                  <div className={`flex items-center gap-1 mt-2 text-sm ${
-                    isOverdue(task.due_date) && !task.completed ? 'text-red-500' : 'text-gray-400'
-                  }`}>
-                    <Calendar size={14} />
-                    <span>{formatDate(task.due_date)}</span>
-                    {isOverdue(task.due_date) && !task.completed && (
-                      <span className="flex items-center gap-1 ml-2 text-red-500">
-                        <AlertCircle size={14} />
-                        Atrasada
-                      </span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-gray-800 font-medium text-lg">
+                      {task.title}
+                    </span>
+                    {task.description && (
+                      <p className="text-sm text-gray-400">{task.description}</p>
                     )}
                   </div>
-                )}
-              </div>
 
-              <button
-                onClick={() => deleteTask(task.id)}
-                className="text-gray-300 hover:text-red-500 transition-colors"
-              >
-                <Trash2 size={18} />
-              </button>
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all p-2"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+
+          {completedTasks.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
+                  Comprados ({completedTasks.length})
+                </h3>
+                <button
+                  onClick={clearCompleted}
+                  className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors"
+                >
+                  <Trash size={14} />
+                  Limpiar
+                </button>
+              </div>
+              {completedTasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="bg-gray-50 rounded-xl border border-gray-100 p-4 flex items-center gap-4 opacity-60"
+                >
+                  <button
+                    onClick={() => toggleTask(task.id)}
+                    className="flex-shrink-0 w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white"
+                  >
+                    <CheckCircle size={20} />
+                  </button>
+
+                  <div className="flex-1 min-w-0">
+                    <span className="text-gray-500 font-medium line-through">
+                      {task.title}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => deleteTask(task.id)}
+                    className="text-gray-300 hover:text-red-500 transition-all p-2"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">Nueva Tarea</h3>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-xl font-bold mb-4 text-gray-800">Añadir producto</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Título *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Producto *</label>
                 <input
                   type="text"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Ej: Hacer la compra"
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  placeholder="Ej: Leche, Pan, Huevos..."
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent text-lg"
                   autoFocus
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
-                <textarea
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (opcional)</label>
+                <input
+                  type="text"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Detalles adicionales..."
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
-                  rows={2}
+                  placeholder="Ej: 2 litros, 500g, 1 docena..."
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha límite</label>
-                  <input
-                    type="date"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Prioridad</label>
-                  <select
-                    value={formData.priority}
-                    onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                  >
-                    <option value="low">Baja</option>
-                    <option value="normal">Normal</option>
-                    <option value="high">Alta</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => {
                     setShowModal(false);
-                    setFormData({ title: '', description: '', due_date: '', priority: 'normal' });
+                    setFormData({ title: '', description: '' });
                   }}
-                  className="flex-1 py-2 border rounded-lg text-gray-600 hover:bg-gray-50"
+                  className="flex-1 py-3 border rounded-xl text-gray-600 hover:bg-gray-50 font-medium"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                  className="flex-1 py-3 bg-primary text-white rounded-xl hover:bg-primary/90 font-medium shadow-sm"
                 >
-                  Crear
+                  Añadir
                 </button>
               </div>
             </form>
