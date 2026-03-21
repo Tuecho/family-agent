@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Bell, Mail, Clock, Send, Loader2, Check, X } from 'lucide-react';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -33,7 +34,7 @@ export function NotificationSettings() {
 
   const fetchSettings = async () => {
     try {
-      const resp = await fetch(`${API_URL}/api/notifications/settings`);
+      const resp = await fetch(`${API_URL}/api/notifications/settings`, { headers: getAuthHeaders() });
       const data = await resp.json();
       setSettings({
         email_enabled: data.email_enabled || 0,
@@ -57,7 +58,7 @@ export function NotificationSettings() {
     try {
       const resp = await fetch(`${API_URL}/api/notifications/settings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...settings, smtp_password: smtpPassword })
       });
       const data = await resp.json();
@@ -87,7 +88,7 @@ export function NotificationSettings() {
     try {
       const resp = await fetch(`${API_URL}/api/notifications/test`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email_to: settings.email_to,
           smtp_host: settings.smtp_host,

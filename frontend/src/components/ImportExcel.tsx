@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X } from 'lucide-react';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -64,6 +65,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
     try {
       const response = await fetch(`${API_URL}/api/import/excel`, {
         method: 'POST',
+        headers: getAuthHeaders(),
         body: formData
       });
 

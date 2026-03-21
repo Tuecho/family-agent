@@ -41,7 +41,9 @@ export function Login({ onLogin }: { onLogin: () => void }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
         authenticated: true, 
         username: username.trim(),
-        isAdmin: data.isAdmin 
+        password: password,
+        isAdmin: data.isAdmin,
+        userId: data.userId 
       }));
       onLogin();
     } catch {
@@ -453,5 +455,14 @@ export function useAuth() {
     setIsAdmin(false);
   };
 
-  return { isAuthenticated, isAdmin, login, logout };
+  const getAuth = () => {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return { username: parsed.username, password: parsed.password };
+    }
+    return null;
+  };
+
+  return { isAuthenticated, isAdmin, login, logout, getAuth };
 }

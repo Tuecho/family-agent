@@ -3,6 +3,7 @@ import { Plus, Trash2, TrendingUp, TrendingDown, Pencil } from 'lucide-react';
 import { useStore } from '../store';
 import type { ExpenseConceptItem } from '../types';
 import { formatMoneyEs } from '../utils/format';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -95,8 +96,9 @@ export function Budgets() {
     try {
       const month = String(new Date().getMonth() + 1).padStart(2, '0');
       const year = new Date().getFullYear();
+      const headers = getAuthHeaders();
       
-      const response = await fetch(`${API_URL}/api/budgets/with-spending?month=${month}&year=${year}`);
+      const response = await fetch(`${API_URL}/api/budgets/with-spending?month=${month}&year=${year}`, { headers });
       const data = await response.json();
       setBudgets(data);
     } catch (error) {
@@ -119,10 +121,9 @@ export function Budgets() {
     try {
       const method = editing ? 'PUT' : 'POST';
       const url = editing ? `${API_URL}/api/budgets/${id}` : `${API_URL}/api/budgets`;
-
       await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id,
           concept: formData.concept,
@@ -150,7 +151,8 @@ export function Budgets() {
     if (!window.confirm('¿Eliminar este presupuesto?')) return;
     try {
       await fetch(`${API_URL}/api/budgets/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: getAuthHeaders()
       });
       fetchBudgets();
     } catch (error) {

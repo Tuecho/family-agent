@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut } from 'lucide-react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
 import { useAuth } from '../components/Auth';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -13,6 +14,22 @@ interface Profile {
   phone: string | null;
   family_name: string;
   currency: string;
+}
+
+interface Invitation {
+  id: number;
+  from_user_id: number;
+  from_username: string;
+  to_username: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  created_at: string;
+}
+
+interface SharedUser {
+  id: number;
+  shared_with_id: number;
+  shared_with_username: string;
+  created_at: string;
 }
 
 export function Profile() {
@@ -29,6 +46,12 @@ export function Profile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [invitations, setInvitations] = useState<Invitation[]>([]);
+  const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
+  const [inviteUsername, setInviteUsername] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
 
   useEffect(() => {
     fetchProfile();
@@ -36,7 +59,8 @@ export function Profile() {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/profile`);
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/profile`, { headers });
       const data = await response.json();
       setProfile(data);
     } catch (error) {
@@ -45,15 +69,87 @@ export function Profile() {
     setLoading(false);
   };
 
+  const fetchInvitations = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/invitations`, { headers });
+      const data = await response.json();
+      setInvitations((data.received || []).filter((i: Invitation) => i.status === 'pending'));
+      setSharedUsers(data.sharedWith || []);
+    } catch (error) {
+      console.error('Error fetching invitations:', error);
+    }
+  };
+
+  const handleInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inviteUsername.trim()) return;
+
+    setInviting(true);
+    setInviteError('');
+    setInviteSuccess('');
+
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/invitations`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ to_username: inviteUsername.trim() })
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        setInviteSuccess(`Invitación enviada a ${inviteUsername}`);
+        setInviteUsername('');
+        fetchInvitations();
+      } else {
+        setInviteError(data.error || 'Error al enviar invitación');
+      }
+    } catch (error) {
+      setInviteError('Error de conexión');
+    }
+    setInviting(false);
+  };
+
+  const handleInvitationAction = async (invitationId: number, action: 'accept' | 'reject') => {
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/invitations/${invitationId}/${action}`, {
+        method: 'PUT',
+        headers
+      });
+      fetchInvitations();
+    } catch (error) {
+      console.error('Error handling invitation:', error);
+    }
+  };
+
+  const handleRemoveShare = async (sharedWithId: number) => {
+    if (!window.confirm('¿Dejar de compartir datos con este usuario?')) return;
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/shares/${sharedWithId}`, { method: 'DELETE', headers });
+      fetchInvitations();
+    } catch (error) {
+      console.error('Error removing share:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvitations();
+    fetchSharedUsers();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setSaved(false);
 
     try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const response = await fetch(`${API_URL}/api/profile`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(profile)
       });
       
@@ -88,7 +184,8 @@ export function Profile() {
     if (!doubleConfirm) return;
 
     try {
-      const response = await fetch(`${API_URL}/api/reset`, { method: 'POST' });
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/reset`, { method: 'POST', headers });
       if (response.ok) {
         alert('Todos los datos han sido eliminados.');
         window.location.reload();
@@ -253,6 +350,100 @@ export function Profile() {
 
           <div className="mt-8">
             <NotificationSettings />
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <Share2 size={20} className="text-primary" />
+              Compartir datos familiares
+            </h3>
+
+            <form onSubmit={handleInvite} className="mb-6">
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={inviteUsername}
+                  onChange={(e) => setInviteUsername(e.target.value)}
+                  placeholder="Nombre de usuario a invitar"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  disabled={inviting || !inviteUsername.trim()}
+                  className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {inviting ? <Loader2 size={18} className="animate-spin" /> : <UserPlus size={18} />}
+                  Invitar
+                </button>
+              </div>
+              {inviteError && <p className="text-expense text-sm mt-2">{inviteError}</p>}
+              {inviteSuccess && <p className="text-income text-sm mt-2">{inviteSuccess}</p>}
+            </form>
+
+            {sharedUsers.length > 0 && (
+              <div className="mb-6">
+                <h4 className="font-medium text-gray-700 mb-2">Usuarios con acceso a tus datos:</h4>
+                <div className="space-y-2">
+                  {sharedUsers.map((share) => (
+                    <div key={share.shared_with_id} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <User size={16} className="text-primary" />
+                        </div>
+                        <span className="font-medium text-gray-800">{share.username || share.shared_with_username}</span>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveShare(share.shared_with_id)}
+                        className="text-expense hover:text-red-700 text-sm flex items-center gap-1"
+                      >
+                        <X size={14} />
+                        Quitar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {invitations.filter(i => i.status === 'pending').length > 0 && (
+              <div>
+                <h4 className="font-medium text-gray-700 mb-2">Invitaciones pendientes:</h4>
+                <div className="space-y-2">
+                  {invitations.filter(i => i.status === 'pending').map((inv) => (
+                    <div key={inv.id} className="flex items-center justify-between bg-yellow-50 rounded-lg p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-yellow-100 flex items-center justify-center">
+                          <User size={16} className="text-yellow-600" />
+                        </div>
+                        <span className="font-medium text-gray-800">{inv.from_username} quiere compartir contigo</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleInvitationAction(inv.id, 'accept')}
+                          className="flex items-center gap-1 bg-income text-white px-3 py-1 rounded-lg text-sm hover:bg-income/90"
+                        >
+                          <Check size={14} />
+                          Aceptar
+                        </button>
+                        <button
+                          onClick={() => handleInvitationAction(inv.id, 'reject')}
+                          className="flex items-center gap-1 bg-expense text-white px-3 py-1 rounded-lg text-sm hover:bg-expense/90"
+                        >
+                          <X size={14} />
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {sharedUsers.length === 0 && invitations.filter(i => i.status === 'pending').length === 0 && (
+              <p className="text-gray-500 text-sm">
+                No has compartido datos ni tienes invitaciones pendientes.
+              </p>
+            )}
           </div>
 
           <div className="mt-8 pt-6 border-t border-gray-200">

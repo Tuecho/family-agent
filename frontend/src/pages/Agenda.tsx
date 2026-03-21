@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
 import type { FamilyEvent } from '../types';
 import { formatTime24 } from '../utils/format';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -92,7 +93,8 @@ export function Agenda() {
         to = formatISODate(lastDayOfMonth);
       }
 
-      const response = await fetch(`${API_URL}/api/events?from=${from}&to=${to}`);
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/events?from=${from}&to=${to}`, { headers });
       const data = await response.json();
       setEvents(data);
     } catch (error) {
@@ -163,9 +165,10 @@ export function Agenda() {
       const url = editingEvent ? `${API_URL}/api/events/${id}` : `${API_URL}/api/events`;
       const method = editingEvent ? 'PUT' : 'POST';
       console.log('Saving event:', payload);
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const resp = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
       });
       if (!resp.ok) {
@@ -182,7 +185,8 @@ export function Agenda() {
   const handleDelete = async (event: FamilyEvent) => {
     if (!window.confirm('¿Eliminar este evento?')) return;
     try {
-      await fetch(`${API_URL}/api/events/${event.id}`, { method: 'DELETE' });
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/events/${event.id}`, { method: 'DELETE', headers });
       await fetchEvents();
     } catch (error) {
       console.error('Error deleting event:', error);

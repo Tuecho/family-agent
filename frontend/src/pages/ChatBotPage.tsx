@@ -1,6 +1,7 @@
 import type React from 'react';
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, Settings, Zap, Brain, X, Eye, EyeOff, CheckCircle, AlertCircle, ExternalLink } from 'lucide-react';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -39,7 +40,7 @@ function LlmSettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/llm/settings`)
+    fetch(`${API_URL}/api/llm/settings`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => {
         if (data.configured) {
@@ -61,7 +62,7 @@ function LlmSettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     try {
       const res = await fetch(`${API_URL}/api/llm/test`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: apiKey, model })
       });
       const data = await res.json();
@@ -82,7 +83,7 @@ function LlmSettingsModal({ onClose, onSaved }: { onClose: () => void; onSaved: 
     try {
       const res = await fetch(`${API_URL}/api/llm/settings`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ api_key: apiKey, model })
       });
       if (res.ok) {
@@ -236,7 +237,7 @@ export function ChatBotPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/llm/settings`)
+    fetch(`${API_URL}/api/llm/settings`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(setLlmSettings)
       .catch(console.error);
@@ -268,7 +269,7 @@ export function ChatBotPage() {
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
 
@@ -504,7 +505,7 @@ export function ChatBotPage() {
         <LlmSettingsModal 
           onClose={() => setShowSettings(false)} 
           onSaved={() => {
-            fetch(`${API_URL}/api/llm/settings`)
+            fetch(`${API_URL}/api/llm/settings`, { headers: getAuthHeaders() })
               .then(res => res.json())
               .then(setLlmSettings)
               .then(() => {

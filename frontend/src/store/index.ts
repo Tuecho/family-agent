@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ExpenseConceptItem, Transaction } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
+const STORAGE_KEY = 'family_agent_auth';
 
 interface BudgetItem {
   id: string;
@@ -44,6 +45,17 @@ interface AppState {
   getTotals: () => { income: number; expense: number; balance: number };
 }
 
+function getAuthHeaders(): Record<string, string> {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (stored) {
+    const { username, password } = JSON.parse(stored);
+    if (username && password) {
+      return { username, password };
+    }
+  }
+  return {};
+}
+
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
 export const useStore = create<AppState>((set, get) => ({
@@ -62,7 +74,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   fetchConcepts: async () => {
     try {
-      const resp = await fetch(`${API_URL}/api/concepts`);
+      const headers = getAuthHeaders();
+      const resp = await fetch(`${API_URL}/api/concepts`, { headers });
       const data = await resp.json();
       set({ concepts: Array.isArray(data) ? data : [] });
     } catch (error) {
@@ -72,9 +85,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   addConcept: async (concept) => {
     try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const resp = await fetch(`${API_URL}/api/concepts`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(concept)
       });
       if (!resp.ok) return;
@@ -86,9 +100,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateConceptLabel: async (key, label) => {
     try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const resp = await fetch(`${API_URL}/api/concepts/${key}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ label })
       });
       if (!resp.ok) return;
@@ -104,7 +119,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   deleteConcept: async (key) => {
     try {
-      const resp = await fetch(`${API_URL}/api/concepts/${key}`, { method: 'DELETE' });
+      const headers = getAuthHeaders();
+      const resp = await fetch(`${API_URL}/api/concepts/${key}`, { method: 'DELETE', headers });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
         return { success: false, error: data?.error || 'No se pudo eliminar' };
@@ -120,9 +136,10 @@ export const useStore = create<AppState>((set, get) => ({
   fetchTransactions: async (opts) => {
     set({ loading: true });
     try {
+      const headers = getAuthHeaders();
       const month = opts?.month ?? get().selectedMonth;
       const year = opts?.year ?? get().selectedYear;
-      const response = await fetch(`${API_URL}/api/transactions?month=${month}&year=${year}`);
+      const response = await fetch(`${API_URL}/api/transactions?month=${month}&year=${year}`, { headers });
       const data = await response.json();
       set({ transactions: data, loading: false });
     } catch (error) {
@@ -136,9 +153,10 @@ export const useStore = create<AppState>((set, get) => ({
     const transactionWithId = { ...transaction, id };
     
     try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       await fetch(`${API_URL}/api/transactions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(transactionWithId)
       });
       
@@ -152,9 +170,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   updateTransaction: async (transaction) => {
     try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       await fetch(`${API_URL}/api/transactions/${transaction.id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(transaction)
       });
 
@@ -168,8 +187,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   deleteTransaction: async (id) => {
     try {
+      const headers = getAuthHeaders();
       await fetch(`${API_URL}/api/transactions/${id}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers
       });
       
       set((state) => ({
@@ -183,7 +204,8 @@ export const useStore = create<AppState>((set, get) => ({
   fetchBudgets: async () => {
     const { selectedMonth, selectedYear } = get();
     try {
-      const response = await fetch(`${API_URL}/api/budgets/with-spending?month=${selectedMonth}&year=${selectedYear}`);
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/budgets/with-spending?month=${selectedMonth}&year=${selectedYear}`, { headers });
       const data = await response.json();
       set({ budgets: Array.isArray(data) ? data : [] });
     } catch (error) {
@@ -193,7 +215,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   fetchMonthlyData: async () => {
     try {
-      const response = await fetch(`${API_URL}/api/transactions/monthly?months=6`);
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/transactions/monthly?months=6`, { headers });
       const data = await response.json();
       set({ monthlyData: Array.isArray(data) ? data : [] });
     } catch (error) {
@@ -202,7 +225,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   getMonthlyTransactions: () => {
-    // El backend ya devuelve filtrado por mes/año, pero filtramos por seguridad.
     const { selectedMonth, selectedYear } = get();
     const mm = String(selectedMonth).padStart(2, '0');
     const yyyy = String(selectedYear);

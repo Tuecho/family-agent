@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Home, Wallet, Bot, Target, MessageCircle, User, Shield } from 'lucide-react';
+import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -22,7 +23,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
   const [isHovered, setIsHovered] = useState(false);
 
   useEffect(() => {
-    fetch(`${API_URL}/api/profile`)
+    fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => setProfile(data))
       .catch(console.error);
