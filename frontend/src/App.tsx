@@ -6,6 +6,7 @@ import { ChatBotPage } from './pages/ChatBotPage';
 import { Budgets } from './pages/Budgets';
 import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
+import { Tasks } from './pages/Tasks';
 import { AdminPage } from './pages/AdminPage';
 import { FAQ } from './pages/FAQ';
 import { About } from './pages/About';
@@ -14,7 +15,7 @@ import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
 function AppContent() {
-  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'admin' | 'faq' | 'about'>('dashboard');
+  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'tasks' | 'admin' | 'faq' | 'about'>('dashboard');
   const { isAuthenticated, isAdmin, login, logout } = useAuth();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -85,6 +86,7 @@ function AppContent() {
           {activePage === 'chatbot' && <ChatBotPage />}
           {activePage === 'profile' && <Profile />}
           {activePage === 'agenda' && <Agenda />}
+          {activePage === 'tasks' && <Tasks />}
           {activePage === 'admin' && isAdmin && <AdminPage />}
           {activePage === 'faq' && <FAQ />}
           {activePage === 'about' && <About />}

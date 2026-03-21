@@ -131,68 +131,8 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_timezone TEXT DEFAULT 'Europe/Madrid'`); } catch(e) {}
-  
-  try {
-    const pragma = db.exec("PRAGMA table_info(user_profile)");
-    if (pragma.length > 0) {
-      const cols = pragma[0].values.map(v => v[1]);
-      if (cols.includes('id') && !cols.includes('owner_id')) {
-        db.run("ALTER TABLE user_profile ADD COLUMN owner_id INTEGER DEFAULT 1");
-      }
-    }
-  } catch(e) {}
-  
-  try {
-    db.run(`CREATE TABLE IF NOT EXISTS user_profile_new (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_id INTEGER,
-      name TEXT DEFAULT 'Usuario',
-      avatar TEXT,
-      email TEXT,
-      phone TEXT,
-      family_name TEXT DEFAULT 'Mi Familia',
-      currency TEXT DEFAULT 'EUR',
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`);
-    const existing = db.exec("SELECT owner_id, name, avatar, email, phone, family_name, currency, updated_at FROM user_profile");
-    if (existing.length > 0 && existing[0].values.length > 0) {
-      for (const row of existing[0].values) {
-        try {
-          db.run("INSERT INTO user_profile_new (owner_id, name, avatar, email, phone, family_name, currency, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", row);
-        } catch(e) {}
-      }
-    }
-    db.run("DROP TABLE user_profile");
-    db.run("ALTER TABLE user_profile_new RENAME TO user_profile");
-  } catch(e) {}
-  
-  db.run(`
-    INSERT OR IGNORE INTO expense_concepts (key, owner_id, label) VALUES
-      ('gasolina', 0, 'Gasolina'),
-      ('comida', 0, 'Comida'),
-      ('alquiler', 0, 'Alquiler'),
-      ('servicios', 0, 'Servicios'),
-      ('ocio', 0, 'Ocio'),
-      ('otros', 0, 'Otros')
-  `);
-  
-  db.run(`
-    CREATE TABLE IF NOT EXISTS notification_settings (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      owner_id INTEGER,
-      email_enabled INTEGER DEFAULT 0,
-      email_to TEXT,
-      smtp_host TEXT DEFAULT 'smtp.gmail.com',
-      smtp_port INTEGER DEFAULT 587,
-      smtp_user TEXT,
-      smtp_password TEXT,
-      notify_time TEXT DEFAULT '22:00',
-      notify_timezone TEXT DEFAULT 'Europe/Madrid',
-      notify_day_before INTEGER DEFAULT 1,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  
+  try { db.run(`ALTER TABLE family_tasks ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
   saveDb();
 }
 
@@ -1254,6 +1194,121 @@ app.put('/api/profile', (req, res) => {
   }
 });
 
+app.get('/api/tasks', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId);
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM family_tasks WHERE owner_id IN (${placeholders}) OR owner_id = ? ORDER BY completed ASC, created_at DESC`);
+  stmt.bind([...accessibleIds, userId]);
+  
+  const tasks = [];
+  while (stmt.step()) {
+    tasks.push(stmt.getAsObject());
+  }
+  stmt.free();
+  
+  res.json(tasks);
+});
+
+app.post('/api/tasks', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { title, description, due_date, priority } = req.body;
+  
+  if (!title) {
+    return res.status(400).json({ error: 'El título es obligatorio' });
+  }
+  
+  const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, due_date, priority) VALUES (?, ?, ?, ?, ?)');
+  stmt.run([userId, title, description || null, due_date || null, priority || 'normal']);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.put('/api/tasks/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { title, description, completed, due_date, priority } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM family_tasks WHERE id = ?');
+  checkStmt.bind([id]);
+  let task = null;
+  if (checkStmt.step()) task = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+  
+  if (task.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos para editar esta tarea' });
+  }
+  
+  const stmt = db.prepare('UPDATE family_tasks SET title = ?, description = ?, completed = ?, due_date = ?, priority = ? WHERE id = ?');
+  stmt.run([title, description || null, completed ? 1 : 0, due_date || null, priority || 'normal', id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.put('/api/tasks/:id/toggle', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  const checkStmt = db.prepare('SELECT owner_id, completed FROM family_tasks WHERE id = ?');
+  checkStmt.bind([id]);
+  let task = null;
+  if (checkStmt.step()) task = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+  
+  if (task.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos' });
+  }
+  
+  const newCompleted = task.completed ? 0 : 1;
+  const stmt = db.prepare('UPDATE family_tasks SET completed = ? WHERE id = ?');
+  stmt.run([newCompleted, id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true, completed: newCompleted });
+});
+
+app.delete('/api/tasks/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM family_tasks WHERE id = ?');
+  checkStmt.bind([id]);
+  let task = null;
+  if (checkStmt.step()) task = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
+  
+  if (task.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos para eliminar esta tarea' });
+  }
+  
+  db.run('DELETE FROM family_tasks WHERE id = ?', [id]);
+  saveDb();
+  
+  res.json({ success: true });
+});
+
 app.post('/api/reset', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -1262,6 +1317,7 @@ app.post('/api/reset', (req, res) => {
     db.run('DELETE FROM transactions WHERE owner_id = ?', [userId]);
     db.run('DELETE FROM budgets WHERE owner_id = ?', [userId]);
     db.run('DELETE FROM family_events WHERE owner_id = ?', [userId]);
+    db.run('DELETE FROM family_tasks WHERE owner_id = ?', [userId]);
     db.run('DELETE FROM user_shares WHERE owner_id = ? OR shared_with_id = ?', [userId, userId]);
     db.run('DELETE FROM invitations WHERE from_user_id = ?', [userId]);
     saveDb();
