@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, ListTodo, Calendar, AlertCircle } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -152,6 +152,38 @@ export function Tasks() {
     return dateStr < today;
   };
 
+  const generateShareText = () => {
+    const header = '🛒 *Lista de la Compra*\n\n';
+    const items = pendingShopping.map((item, i) => {
+      const qty = item.description ? ` (${item.description})` : '';
+      return `${i + 1}. ${item.title}${qty}`;
+    }).join('\n');
+    const footer = '\n---\nEnviado desde Family Agent';
+    return header + items + footer;
+  };
+
+  const shareToWhatsApp = () => {
+    const text = encodeURIComponent(generateShareText());
+    window.open(`https://wa.me/?text=${text}`, '_blank');
+  };
+
+  const shareToTelegram = () => {
+    const text = encodeURIComponent(generateShareText());
+    window.open(`https://t.me/share/url?url=&text=${text}`, '_blank');
+  };
+
+  const shareByEmail = () => {
+    const subject = encodeURIComponent('Lista de la Compra');
+    const body = encodeURIComponent(generateShareText().replace(/[*_]/g, ''));
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank');
+  };
+
+  const copyToClipboard = async () => {
+    const text = generateShareText().replace(/[*_]/g, '');
+    await navigator.clipboard.writeText(text);
+    alert('¡Lista copiada al portapapeles!');
+  };
+
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -224,6 +256,49 @@ export function Tasks() {
                 </div>
               ) : (
                 <>
+                  {pendingShopping.length > 0 && (
+                    <div className="bg-white rounded-xl border p-4 mb-6 shadow-sm">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                          <Share2 size={16} />
+                          Compartir lista
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={shareToWhatsApp}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium"
+                        >
+                          <MessageCircle size={16} />
+                          WhatsApp
+                        </button>
+                        <button
+                          onClick={shareToTelegram}
+                          className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+                        >
+                          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                          </svg>
+                          Telegram
+                        </button>
+                        <button
+                          onClick={shareByEmail}
+                          className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                        >
+                          <Mail size={16} />
+                          Email
+                        </button>
+                        <button
+                          onClick={copyToClipboard}
+                          className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                        >
+                          <Copy size={16} />
+                          Copiar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {pendingShopping.length > 0 && (
                     <div className="space-y-2 mb-8">
                       <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">
