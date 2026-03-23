@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -47,7 +47,11 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login'>('users');
+  
+  const [loginImage, setLoginImage] = useState('');
+  const [showLock, setShowLock] = useState(true);
+  const [savingLogin, setSavingLogin] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -82,6 +86,52 @@ export function AdminPage() {
     } catch (error) {
       console.error('Error fetching suggestions:', error);
     }
+  };
+
+  const fetchLoginSettings = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/settings/login-image`, { headers });
+      const data = await response.json();
+      setLoginImage(data.image || '');
+      setShowLock(data.showLock !== false);
+    } catch (error) {
+      console.error('Error fetching login settings:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'login') {
+      fetchLoginSettings();
+    }
+  }, [activeTab]);
+
+  const saveLoginSettings = async () => {
+    setSavingLogin(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/settings/login-image`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ image: loginImage, showLock })
+      });
+      alert('Configuración guardada');
+    } catch (error) {
+      console.error('Error saving login settings:', error);
+      alert('Error al guardar');
+    }
+    setSavingLogin(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setLoginImage(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleSuggestionAction = async (id: number, action: 'read' | 'delete') => {
@@ -325,6 +375,17 @@ export function AdminPage() {
               {suggestions.filter(s => s.status === 'pending').length}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => setActiveTab('login')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-2 ${
+            activeTab === 'login'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Settings size={16} className="inline mr-1" />
+          Login
         </button>
       </div>
 
@@ -640,6 +701,98 @@ export function AdminPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {activeTab === 'login' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Settings size={18} />
+              <span className="font-medium">Configuración de la pantalla de login</span>
+            </div>
+          </div>
+          
+          <div className="p-6 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-3">
+                Imagen de login
+              </label>
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0">
+                  {loginImage ? (
+                    <img 
+                      src={loginImage} 
+                      alt="Login preview" 
+                      className="w-24 h-24 rounded-full object-cover border-4 border-gray-200 shadow-md"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-gray-100 border-4 border-gray-200 flex items-center justify-center">
+                      <ImageIcon size={32} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-500 mb-3">
+                    Sube una imagen para mostrar en la pantalla de login (cuadrada, se mostrará como círculo)
+                  </p>
+                  <label className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 cursor-pointer transition-colors">
+                    <Image size={16} />
+                    {loginImage ? 'Cambiar imagen' : 'Subir imagen'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  {loginImage && (
+                    <button
+                      onClick={() => setLoginImage('')}
+                      className="ml-2 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Quitar
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="border-t pt-6">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showLock}
+                  onChange={(e) => setShowLock(e.target.checked)}
+                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <div>
+                  <span className="font-medium text-gray-700">Mostrar icono de candado</span>
+                  <p className="text-sm text-gray-500">Si está desactivado, se mostrará el icono de casa</p>
+                </div>
+              </label>
+            </div>
+
+            <div className="border-t pt-6">
+              <button
+                onClick={saveLoginSettings}
+                disabled={savingLogin}
+                className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {savingLogin ? (
+                  <>
+                    <Loader2 size={18} className="animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Check size={18} />
+                    Guardar configuración
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

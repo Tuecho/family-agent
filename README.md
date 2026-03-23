@@ -30,7 +30,8 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 - **Datos aislados**: Cada usuario tiene sus propios datos (transacciones, presupuestos, eventos, tareas, notas)
 - **Primer usuario = administrador**: El primer usuario registrado se crea automáticamente como administrador
 - **Compartir datos**: Invita a otros usuarios a ver tus datos familiares
-- **Panel de administración**: Gestiona usuarios, FAQs y sugerencias
+- **Panel de administración**: Gestiona usuarios, FAQs, sugerencias y configuración de login
+- **Personalizar login**: Cambia la imagen de login y muestra/oculta el icono del candado
 
 ### Importación
 - **Excel/CSV**: Importa transacciones desde archivos .xlsx, .xls o .csv
@@ -121,6 +122,7 @@ La aplicación estará disponible en:
 - **Recordar última página**: Al recargar la app se mantiene en la misma sección
 - **Widget chat oculto**: Se oculta automáticamente al entrar en la página de Chat IA
 - **Mejorada UI de listas**: Botones de editar/eliminar visibles en las pestañas
+- **Personalizar login**: Administradores pueden cambiar la imagen de login y mostrar/ocultar el candado
 
 ### v1.0.4 (Marzo 2026)
 - **Importar CSV**: Soporte para archivos .csv además de Excel

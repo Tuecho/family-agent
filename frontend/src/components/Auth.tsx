@@ -44,6 +44,18 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   const [success, setSuccess] = useState('');
   const [showRegister, setShowRegister] = useState(false);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
+  const [loginImage, setLoginImage] = useState('');
+  const [showLock, setShowLock] = useState(true);
+
+  useEffect(() => {
+    fetch(`${API_URL}/api/settings/login-image`)
+      .then(res => res.json())
+      .then(data => {
+        setLoginImage(data.image || '');
+        setShowLock(data.showLock !== false);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,9 +145,21 @@ export function Login({ onLogin }: { onLogin: () => void }) {
     <div className="min-h-screen bg-gradient-to-br from-primary via-pink-500 to-indigo-600 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-8">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Lock className="text-primary" size={32} />
-          </div>
+          {loginImage ? (
+            <img 
+              src={loginImage} 
+              alt="Login" 
+              className="w-20 h-20 rounded-full object-cover mx-auto mb-4 shadow-lg"
+            />
+          ) : showLock ? (
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="text-primary" size={32} />
+            </div>
+          ) : (
+            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="text-3xl">🏠</span>
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-gray-800">Family Agent</h1>
           <p className="text-gray-500 mt-2">
             {showRegister ? 'Crea tu usuario' : 'Introduce tus credenciales'}

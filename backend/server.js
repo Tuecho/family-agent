@@ -772,6 +772,34 @@ app.delete('/api/auth/admin/user/:id', (req, res) => {
   }
 });
 
+app.get('/api/settings/login-image', (req, res) => {
+  const image = localStorage.getItem('loginImage') || '';
+  const showLock = localStorage.getItem('loginShowLock') !== 'false';
+  res.json({ image, showLock });
+});
+
+app.put('/api/settings/login-image', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { username, password } = req.headers || {};
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+  
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+  
+  const { image, showLock } = req.body;
+  localStorage.setItem('loginImage', image || '');
+  if (typeof showLock === 'boolean') {
+    localStorage.setItem('loginShowLock', String(showLock));
+  }
+  
+  res.json({ success: true });
+});
+
 app.get('/api/events', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
