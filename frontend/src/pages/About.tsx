@@ -1,4 +1,4 @@
-import { Heart, Star, Share2, Mail, ExternalLink, Github, Coffee, Shield, Lock } from 'lucide-react';
+import { Heart, Star, Share2, Mail, ExternalLink, Github, Coffee, MessageSquare, Code, DollarSign } from 'lucide-react';
 
 const version = '1.0.1';
 const features = [
@@ -104,6 +104,86 @@ export function About() {
               <span>Reporta errores para que podamos mejorar</span>
             </li>
           </ul>
+        </div>
+
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+            <Code size={20} className="text-purple-500" />
+            Colaboraciones y Donaciones
+          </h2>
+          <p className="text-gray-600 mb-4">
+            ¿Quieres contribuir al proyecto o apoyar su desarrollo? ¡Hay varias formas de hacerlo!
+          </p>
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Github size={20} className="text-gray-800" />
+                <span className="font-medium text-gray-800">Contribuir en GitHub</span>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                Ayúdanos a mejorar el código, reporta issues o envía pull requests.
+              </p>
+              <a
+                href="https://github.com/anomalyco/family_agent"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors text-sm font-medium"
+              >
+                <Github size={16} />
+                Ver repositorio
+                <ExternalLink size={14} />
+              </a>
+            </div>
+
+            <div className="bg-purple-50 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Coffee size={20} className="text-purple-600" />
+                <span className="font-medium text-gray-800">Invítanos un café</span>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                Las donaciones nos ayudan a mantener el servidor y seguir desarrollando.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <a
+                  href="https://ko-fi.com/familyagent"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-pink-500 text-white rounded-lg hover:bg-pink-600 transition-colors text-sm font-medium"
+                >
+                  <Coffee size={16} />
+                  Ko-fi
+                  <ExternalLink size={14} />
+                </a>
+                <a
+                  href="https://www.buymeacoffee.com/familyagent"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium"
+                >
+                  <Coffee size={16} />
+                  Buy Me a Coffee
+                  <ExternalLink size={14} />
+                </a>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-2">
+                <MessageSquare size={20} className="text-blue-600" />
+                <span className="font-medium text-gray-800">Ideas y feedback</span>
+              </div>
+              <p className="text-sm text-gray-600 mb-3">
+                ¿Tienes ideas para nuevas funcionalidades o quieres sugerir mejoras?
+              </p>
+              <a
+                href="mailto:familyagent@example.com?subject=Idea%20para%20Family%20Agent"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+              >
+                <MessageSquare size={16} />
+                Enviar sugerencia
+              </a>
+            </div>
+          </div>
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
