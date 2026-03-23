@@ -148,6 +148,51 @@ async function initDb() {
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN is_family_task INTEGER DEFAULT 0`); } catch(e) {}
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_notes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER,
+      title TEXT NOT NULL,
+      content TEXT,
+      category TEXT DEFAULT 'general',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE family_notes ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS faqs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      question TEXT NOT NULL,
+      answer TEXT NOT NULL,
+      order_index INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const faqCheck = db.exec('SELECT COUNT(*) as count FROM faqs');
+  if (faqCheck.length === 0 || faqCheck[0].values[0][0] === 0) {
+    const defaultFaqs = [
+      ['¿Cómo creo una cuenta?', 'Pide al administrador que te cree un usuario desde el panel de administración. Recibirás tus credenciales por email o directamente del administrador.', 1],
+      ['¿Cómo registro un gasto?', 'Ve a la sección "Contabilidad" y haz clic en "Nueva Transacción". Selecciona el tipo (gasto/ingreso), introduce la cantidad, descripción, concepto y fecha.', 2],
+      ['¿Qué son los conceptos de gasto?', 'Los conceptos categorizan tus gastos (Comida, Gasolina, Alquiler, etc.). Puedes editarlos según tus necesidades desde la configuración.', 3],
+      ['¿Cómo funciona el presupuesto mensual?', 'En "Presupuestos" puedes establecer límites mensuales para cada concepto. El sistema te mostrará cuánto has gastado y cuánto te queda disponible.', 4],
+      ['¿Puedo compartir mis datos con otros usuarios?', 'Sí. Desde tu perfil puedes invitar a otros usuarios a ver tus datos familiares. Ellos podrán ver tus transacciones, presupuestos y eventos, pero no modificarlos.', 5],
+      ['¿Cómo funcionan las notificaciones por email?', 'En tu perfil, activa las notificaciones y configura tu cuenta SMTP. Recibirás un resumen diario con tus gastos y los eventos próximos.', 6],
+      ['¿El chatbot puede ayudarme con mis finanzas?', 'Sí, el asistente IA puede analizar tus datos, explicar gastos, darte consejos de ahorro y responder preguntas sobre tu situación financiera.', 7],
+      ['¿Mis datos están seguros?', 'Sí. Cada usuario tiene sus propios datos aislados. Solo tú y las personas que tú invites pueden ver tu información.', 8],
+      ['¿Puedo importar datos de Excel?', 'Sí, en la sección Contabilidad hay un botón para importar transacciones desde un archivo Excel.', 9],
+      ['¿Cómo cambio mi contraseña?', 'Pide al administrador que la cambie desde el panel de administración, o contacta con él directamente.', 10]
+    ];
+    const stmt = db.prepare('INSERT INTO faqs (question, answer, order_index) VALUES (?, ?, ?)');
+    for (const faq of defaultFaqs) {
+      stmt.run(faq);
+    }
+    stmt.free();
+  }
+
   saveDb();
 }
 
@@ -173,6 +218,20 @@ function getCurrentUserId(headers) {
   }
   stmt.free();
   return userId;
+}
+
+function checkAdmin(headers) {
+  const { username, password } = headers || {};
+  if (!username || !password) return false;
+  
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ? AND status = "approved"');
+  stmt.bind([username]);
+  let isAdmin = false;
+  if (stmt.step()) {
+    isAdmin = stmt.getAsObject().is_admin === 1;
+  }
+  stmt.free();
+  return isAdmin;
 }
 
 function getAccessibleUserIds(ownerId) {
@@ -1209,6 +1268,212 @@ app.put('/api/profile', (req, res) => {
   }
 });
 
+app.get('/api/export', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      version: '1.0'
+    };
+    
+    let stmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
+    stmt.bind([userId]);
+    if (stmt.step()) {
+      exportData.profile = stmt.getAsObject();
+    }
+    stmt.free();
+    
+    stmt = db.prepare('SELECT * FROM transactions WHERE owner_id = ? ORDER BY date DESC');
+    stmt.bind([userId]);
+    exportData.transactions = [];
+    while (stmt.step()) {
+      exportData.transactions.push(stmt.getAsObject());
+    }
+    stmt.free();
+    
+    stmt = db.prepare('SELECT * FROM budgets WHERE owner_id = ?');
+    stmt.bind([userId]);
+    exportData.budgets = [];
+    while (stmt.step()) {
+      exportData.budgets.push(stmt.getAsObject());
+    }
+    stmt.free();
+    
+    stmt = db.prepare('SELECT * FROM family_events WHERE owner_id = ? ORDER BY date ASC');
+    stmt.bind([userId]);
+    exportData.events = [];
+    while (stmt.step()) {
+      exportData.events.push(stmt.getAsObject());
+    }
+    stmt.free();
+    
+    stmt = db.prepare('SELECT * FROM expense_concepts WHERE owner_id = ? OR owner_id = 0');
+    stmt.bind([userId]);
+    exportData.expense_concepts = [];
+    while (stmt.step()) {
+      exportData.expense_concepts.push(stmt.getAsObject());
+    }
+    stmt.free();
+    
+    stmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ?');
+    stmt.bind([userId]);
+    exportData.tasks = [];
+    while (stmt.step()) {
+      exportData.tasks.push(stmt.getAsObject());
+    }
+    stmt.free();
+    
+    res.json(exportData);
+  } catch (error) {
+    console.error('Error exporting data:', error);
+    res.status(500).json({ error: 'Error exporting data' });
+  }
+});
+
+app.post('/api/import', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const data = req.body;
+    
+    if (data.transactions && Array.isArray(data.transactions)) {
+      for (const t of data.transactions) {
+        try {
+          const stmt = db.prepare('INSERT INTO transactions (owner_id, type, amount, category, description, date, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, t.type, t.amount, t.category, t.description || null, t.date, t.created_at || new Date().toISOString()]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.budgets && Array.isArray(data.budgets)) {
+      for (const b of data.budgets) {
+        try {
+          const stmt = db.prepare('INSERT INTO budgets (owner_id, category, amount, month, year) VALUES (?, ?, ?, ?, ?)');
+          stmt.run([userId, b.category, b.amount, b.month, b.year]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.events && Array.isArray(data.events)) {
+      for (const e of data.events) {
+        try {
+          const stmt = db.prepare('INSERT INTO family_events (owner_id, title, date, type, description, recurrence, days_of_week) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, e.title, e.date, e.type || "family", e.description || null, e.recurrence || null, e.days_of_week || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.tasks && Array.isArray(data.tasks)) {
+      for (const t of data.tasks) {
+        try {
+          const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, completed, due_date, priority, is_family_task, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, t.title, t.description || null, t.completed || 0, t.due_date || null, t.priority || 'normal', t.is_family_task || 0, t.created_at || new Date().toISOString()]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    saveDb();
+    res.json({ success: true, message: 'Datos importados correctamente' });
+  } catch (error) {
+    console.error('Error importing data:', error);
+    res.status(500).json({ error: 'Error importing data' });
+  }
+});
+
+app.get('/api/faqs', (req, res) => {
+  try {
+    const stmt = db.prepare('SELECT * FROM faqs ORDER BY order_index ASC');
+    const faqs = [];
+    while (stmt.step()) {
+      faqs.push(stmt.getAsObject());
+    }
+    stmt.free();
+    res.json(faqs);
+  } catch (error) {
+    console.error('Error fetching FAQs:', error);
+    res.status(500).json({ error: 'Error fetching FAQs' });
+  }
+});
+
+app.post('/api/faqs', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(userId);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo los administradores pueden modificar las FAQs' });
+  }
+  
+  const { question, answer, order_index } = req.body;
+  
+  if (!question || !answer) {
+    return res.status(400).json({ error: 'Pregunta y respuesta son obligatorias' });
+  }
+  
+  try {
+    const stmt = db.prepare('INSERT INTO faqs (question, answer, order_index) VALUES (?, ?, ?)');
+    stmt.run([question, answer, order_index || 0]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error creating FAQ:', error);
+    res.status(500).json({ error: 'Error creating FAQ' });
+  }
+});
+
+app.put('/api/faqs/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(userId);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo los administradores pueden modificar las FAQs' });
+  }
+  
+  const { id } = req.params;
+  const { question, answer, order_index } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE faqs SET question = ?, answer = ?, order_index = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    stmt.run([question, answer, order_index || 0, id]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating FAQ:', error);
+    res.status(500).json({ error: 'Error updating FAQ' });
+  }
+});
+
+app.delete('/api/faqs/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const isAdmin = checkAdmin(userId);
+  if (!isAdmin) {
+    return res.status(403).json({ error: 'Solo los administradores pueden eliminar las FAQs' });
+  }
+  
+  const { id } = req.params;
+  
+  try {
+    db.run('DELETE FROM faqs WHERE id = ?', [id]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting FAQ:', error);
+    res.status(500).json({ error: 'Error deleting FAQ' });
+  }
+});
+
 app.get('/api/tasks', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -1324,6 +1589,94 @@ app.delete('/api/tasks/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/notes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId);
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM family_notes WHERE owner_id IN (${placeholders}) OR owner_id = ? ORDER BY updated_at DESC`);
+  stmt.bind([...accessibleIds, userId]);
+  
+  const notes = [];
+  while (stmt.step()) {
+    notes.push(stmt.getAsObject());
+  }
+  stmt.free();
+  
+  res.json(notes);
+});
+
+app.post('/api/notes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { title, content, category } = req.body;
+  
+  if (!title) {
+    return res.status(400).json({ error: 'El título es obligatorio' });
+  }
+  
+  const stmt = db.prepare('INSERT INTO family_notes (owner_id, title, content, category) VALUES (?, ?, ?, ?)');
+  stmt.run([userId, title, content || '', category || 'general']);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.put('/api/notes/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { title, content, category } = req.body;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM family_notes WHERE id = ?');
+  checkStmt.bind([id]);
+  let note = null;
+  if (checkStmt.step()) note = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!note) return res.status(404).json({ error: 'Nota no encontrada' });
+  
+  if (note.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos para editar esta nota' });
+  }
+  
+  const stmt = db.prepare('UPDATE family_notes SET title = ?, content = ?, category = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+  stmt.run([title, content || '', category || 'general', id]);
+  stmt.free();
+  saveDb();
+  
+  res.json({ success: true });
+});
+
+app.delete('/api/notes/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM family_notes WHERE id = ?');
+  checkStmt.bind([id]);
+  let note = null;
+  if (checkStmt.step()) note = checkStmt.getAsObject();
+  checkStmt.free();
+  
+  if (!note) return res.status(404).json({ error: 'Nota no encontrada' });
+  
+  if (note.owner_id !== userId) {
+    return res.status(403).json({ error: 'No tienes permisos para eliminar esta nota' });
+  }
+  
+  db.run('DELETE FROM family_notes WHERE id = ?', [id]);
+  saveDb();
+  
+  res.json({ success: true });
+});
+
 app.post('/api/reset', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -1333,6 +1686,7 @@ app.post('/api/reset', (req, res) => {
     db.run('DELETE FROM budgets WHERE owner_id = ?', [userId]);
     db.run('DELETE FROM family_events WHERE owner_id = ?', [userId]);
     db.run('DELETE FROM family_tasks WHERE owner_id = ?', [userId]);
+    db.run('DELETE FROM family_notes WHERE owner_id = ?', [userId]);
     db.run('DELETE FROM user_shares WHERE owner_id = ? OR shared_with_id = ?', [userId, userId]);
     db.run('DELETE FROM invitations WHERE from_user_id = ?', [userId]);
     saveDb();

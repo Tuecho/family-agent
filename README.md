@@ -10,11 +10,36 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 - **Agenda familiar**: Eventos con soporte para recurrencia semanal (ej: clases de inglés cada lunes y miércoles)
 - **Dashboard**: Gráficos de evolución mensual con resumen del mes y presupuestos
 
+### Tareas y Lista de la Compra (v1.0.1)
+- **Lista de la Compra**: Productos con cantidad, marcar al comprar, sección de comprados
+- **Tareas Familiares**: Tareas con prioridades (Alta/Media/Normal) y fechas límite
+- **Compartir listas**: Envía tu lista por WhatsApp, Telegram o Email
+- **Tareas atrasadas**: Visualización de tareas vencidas
+
+### Notas (v1.0.1)
+- **Notas rápidas**: Apunta información importante
+- **Categorías**: General, Trabajo, Familia, Personal, Importante
+- **Búsqueda**: Filtra notas por título o contenido
+- **Edición**: Crea, edita y elimina notas
+
 ### Sistema Multi-Usuario
-- **Datos aislados**: Cada usuario tiene sus propios datos (transacciones, presupuestos, eventos)
+- **Datos aislados**: Cada usuario tiene sus propios datos (transacciones, presupuestos, eventos, tareas, notas)
 - **Compartir datos**: Invita a otros usuarios a ver tus datos familiares
 - **Panel de administración**: Gestiona usuarios (crear, bloquear, eliminar, cambiar contraseñas, asignar roles)
+- **FAQs editables**: Los administradores pueden añadir, editar y eliminar FAQs
+
+### Seguridad (v1.0.1)
+- **Contraseñas seguras**: Validación de requisitos (8+ chars, mayúsculas, minúsculas, números, caracteres especiales)
+- **Auto-cierre de sesión**: La sesión se cierra automáticamente tras 5 minutos de inactividad
 - **Autenticación segura**: Contraseñas hasheadas con salt
+
+### Internacionalización (v1.0.1)
+- **Multiidioma**: Selector de idioma en la interfaz (Español/Inglés)
+- **Persistencia**: El idioma seleccionado se guarda en localStorage
+
+### Copias de Seguridad (v1.0.1)
+- **Exportar datos**: Descarga todos tus datos en JSON (transacciones, presupuestos, eventos, tareas, notas)
+- **Importar datos**: Restaura tus datos desde un archivo de backup
 
 ### Notificaciones
 - **Email automatizado**: Resumen diario con eventos y presupuestos
@@ -27,7 +52,7 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 - **Contexto familiar**: El chatbot conoce tu situación financiera
 
 ### Extra
-- **FAQ**: Preguntas frecuentes con manuales
+- **FAQ**: Preguntas frecuentes con manuales (editables por admins)
 - **Acerca de**: Información de la app y opción de recomendar a otros
 - **Diseño responsive**: Optimizado para móvil y escritorio
 
@@ -101,14 +126,18 @@ La aplicación estará disponible en:
 1. Accede a la aplicación
 2. Regístrate con un nombre de usuario
 3. Ese usuario se convertirá en **administrador**
+4. ¡Importante! Las contraseñas deben cumplir: 8+ caracteres, mayúsculas, minúsculas, números y caracteres especiales
 
 ### Como administrador
 - Gestionar usuarios (crear, bloquear, eliminar)
 - Asignar/revocar rol de administrador
 - Cambiar contraseñas de otros usuarios
+- Editar FAQs (añadir, modificar, eliminar preguntas)
 
 ### Como usuario
 - Gestionar tus propias transacciones, presupuestos y eventos
+- Crear y gestionar tareas y lista de la compra
+- Tomar notas personales
 - Configurar tu perfil y preferencias de notificaciones
 - Invitar a otros usuarios a ver tus datos
 - Aceptar o rechazar invitaciones de otros usuarios
@@ -137,9 +166,9 @@ npm run dev
 family-agent/
 ├── frontend/              # React app
 │   ├── src/
-│   │   ├── pages/       # Dashboard, Accounting, Agenda, Budgets, Chat, Profile, FAQ, About, Admin
-│   │   ├── components/  # Sidebar, Auth, ChatWidget, NotificationSettings, ImportExcel
-│   │   ├── store/      # Estado global (Zustand)
+│   │   ├── pages/       # Dashboard, Accounting, Agenda, Budgets, Chat, Profile, FAQ, About, Admin, Tasks, Notes
+│   │   ├── components/  # Sidebar, Auth, ChatWidget, NotificationSettings, ImportExcel, LanguageSelector
+│   │   ├── i18n/        # Traducciones (Español/Inglés)
 │   │   └── utils/      # Helpers (auth, format)
 │   └── Dockerfile
 ├── backend/              # API Express
@@ -183,6 +212,29 @@ family-agent/
 - `PUT /api/events/:id` - Actualizar evento
 - `DELETE /api/events/:id` - Eliminar evento
 
+### Tareas (v1.0.1)
+- `GET /api/tasks` - Lista de tareas (lista de compra y tareas familiares)
+- `POST /api/tasks` - Crear tarea
+- `PUT /api/tasks/:id` - Actualizar tarea
+- `PUT /api/tasks/:id/toggle` - Marcar/desmarcar completada
+- `DELETE /api/tasks/:id` - Eliminar tarea
+
+### Notas (v1.0.1)
+- `GET /api/notes` - Lista de notas
+- `POST /api/notes` - Crear nota
+- `PUT /api/notes/:id` - Actualizar nota
+- `DELETE /api/notes/:id` - Eliminar nota
+
+### FAQs (v1.0.1)
+- `GET /api/faqs` - Lista de FAQs
+- `POST /api/faqs` - Crear FAQ (admin)
+- `PUT /api/faqs/:id` - Actualizar FAQ (admin)
+- `DELETE /api/faqs/:id` - Eliminar FAQ (admin)
+
+### Backup (v1.0.1)
+- `GET /api/export` - Exportar todos los datos del usuario
+- `POST /api/import` - Importar datos desde backup
+
 ### Perfil
 - `GET /api/profile` - Obtener perfil
 - `PUT /api/profile` - Actualizar perfil
@@ -221,10 +273,13 @@ No necesitas abrir puertos en el router - Cloudflare Tunnel crea una conexión s
 
 ## Seguridad
 
-- Contraseñas hasheadas con SHA-256 + salt
-- Datos de usuario aislados (cada usuario solo ve sus datos + los compartidos con él)
-- Tokens de autenticación en headers HTTP
-- `.env` excluido de Git (contiene claves sensibles)
+- **Contraseñas seguras**: Validación obligatoria (8+ caracteres, mayúsculas, minúsculas, números, caracteres especiales)
+- **Auto-cierre de sesión**: La sesión expira tras 5 minutos de inactividad
+- **Contraseñas hasheadas**: SHA-256 + salt
+- **Datos de usuario aislados**: Cada usuario solo ve sus datos + los compartidos con él
+- **Tokens de autenticación**: En headers HTTP (no localStorage sin cifrar)
+- **FAQs controladas**: Solo administradores pueden modificar contenido
+- **`.env` excluido de Git**: Contienen claves sensibles
 
 ## Licencia
 

@@ -1,7 +1,17 @@
-import { Heart, Star, Share2, Mail, ExternalLink, Github, Coffee } from 'lucide-react';
+import { Heart, Star, Share2, Mail, ExternalLink, Github, Coffee, Shield, Lock } from 'lucide-react';
 
-const version = '1.0.0';
+const version = '1.0.1';
 const features = [
+  { version: '1.0.1', date: 'Marzo 2026', changes: [
+    'Nueva sección de Notas para apuntes rápidos',
+    'Lista de la compra con compartición (WhatsApp, Telegram, Email)',
+    'Tareas familiares con prioridades y fechas',
+    'Selector de idioma (Español/Inglés)',
+    'Exportar e importar datos (backup)',
+    'Contraseñas seguras con validación',
+    'Auto-cierre de sesión por inactividad (5 min)',
+    'FAQs editables por administradores'
+  ]},
   { version: '1.0.0', date: 'Marzo 2026', changes: ['Sistema multi-usuario con datos aislados', 'Panel de administración completo', 'Notificaciones por email personalizables', 'Integración con IA (Groq)', 'Zonas horarias configurables', 'Compartir datos familiares'] },
 ];
 

@@ -7,15 +7,18 @@ import { Budgets } from './pages/Budgets';
 import { Profile } from './pages/Profile';
 import { Agenda } from './pages/Agenda';
 import { Tasks } from './pages/Tasks';
+import { Notes } from './pages/Notes';
 import { AdminPage } from './pages/AdminPage';
 import { FAQ } from './pages/FAQ';
 import { About } from './pages/About';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
+import { LanguageProvider } from './i18n/LanguageContext';
+import { LanguageSelector } from './components/LanguageSelector';
 import { Menu, X } from 'lucide-react';
 
 function AppContent() {
-  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'tasks' | 'admin' | 'faq' | 'about'>('dashboard');
+  const [activePage, setActivePage] = useState<'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about'>('dashboard');
   const { isAuthenticated, isAdmin, login, logout } = useAuth();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -79,6 +82,9 @@ function AppContent() {
       )}
       
       <main className={`transition-all duration-200 pt-16 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0`}>
+        <div className="fixed top-4 right-4 z-50">
+          <LanguageSelector />
+        </div>
         <div className="p-4 md:p-6">
           {activePage === 'dashboard' && <Dashboard />}
           {activePage === 'accounting' && <Accounting />}
@@ -87,6 +93,7 @@ function AppContent() {
           {activePage === 'profile' && <Profile />}
           {activePage === 'agenda' && <Agenda />}
           {activePage === 'tasks' && <Tasks />}
+          {activePage === 'notes' && <Notes />}
           {activePage === 'admin' && isAdmin && <AdminPage />}
           {activePage === 'faq' && <FAQ />}
           {activePage === 'about' && <About />}
@@ -101,7 +108,9 @@ function AppContent() {
 export default function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
     </AuthProvider>
   );
 }
