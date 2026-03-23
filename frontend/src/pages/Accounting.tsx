@@ -14,11 +14,12 @@ function generateMonthOptions() {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
   
-  for (let y = currentYear - 2; y <= currentYear + 1; y++) {
-    const startMonth = y === currentYear - 2 ? 1 : (y === currentYear ? currentMonth : 12);
-    const endMonth = y === currentYear + 1 ? 1 : (y === currentYear ? currentMonth : 12);
+  for (let y = currentYear - 1; y <= currentYear + 1; y++) {
+    const startMonth = y === currentYear - 1 ? 12 : (y === currentYear + 1 ? 1 : currentMonth);
+    const endMonth = y === currentYear - 1 ? 1 : (y === currentYear + 1 ? currentMonth + 1 : 1);
+    const step = y === currentYear + 1 ? 1 : -1;
     
-    for (let m = startMonth; m >= endMonth; m--) {
+    for (let m = startMonth; step > 0 ? m < endMonth : m >= endMonth; m += step) {
       const monthStr = String(m).padStart(2, '0');
       options.push({
         value: `${y}-${monthStr}`,

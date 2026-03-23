@@ -108,6 +108,15 @@ La aplicación estará disponible en:
 
 ## Changelog
 
+### v1.0.4 (Marzo 2026)
+- **Importar CSV**: Soporte para archivos .csv además de Excel
+- **Botones compartir**: WhatsApp, Telegram, Facebook y X
+- **Importar DB**: Subir backups .db con barra de progreso
+- **Filtro meses**: Mejorado en contabilidad
+- **Primer usuario = admin**: Registro automático como administrador
+- **Repetición eventos**: Diario, semanal y mensual
+- **Arreglado**: Problema de autenticación con usuarios activos
+
 ### v1.0.3 (Marzo 2026)
 - **Diseño Mobile-First**: Interfaz completamente optimizada para dispositivos móviles
 - **FAQ arreglado**: Ya se guardan las ediciones correctamente

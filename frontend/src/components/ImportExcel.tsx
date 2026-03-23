@@ -102,10 +102,10 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
       <button
         onClick={() => setIsOpen(true)}
         className="flex items-center gap-2 bg-income text-white px-4 py-2 rounded-lg hover:bg-income/90 transition-colors"
-        title="Importar desde Excel"
+        title="Importar CSV/Excel"
       >
         <Upload size={20} />
-        Importar Excel
+        CSV/Excel
       </button>
 
       {isOpen && (

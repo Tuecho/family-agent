@@ -4,10 +4,10 @@ import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const version = '1.0.3';
+const version = '1.0.4';
 
 const shareText = 'Echa un vistazo a Family Agent, una aplicación para gestionar las finanzas familiares. ¡Increíble!';
-const shareUrl = 'https://github.com/anomalyco/family_agent';
+const shareUrl = 'https://github.com/Tuecho/family-agent';
 
 const shareWhatsApp = () => {
   window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`, '_blank');
@@ -25,6 +25,15 @@ const shareX = () => {
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
 };
 const features = [
+  { version: '1.0.4', date: 'Marzo 2026', changes: [
+    'Importar CSV además de Excel',
+    'Botones compartir: WhatsApp, Telegram, Facebook, X',
+    'Importar base de datos .db con barra de progreso',
+    'Filtro de meses mejorado en contabilidad',
+    'Primer usuario se crea como administrador automáticamente',
+    'Repetición de eventos: diario, semanal y mensual',
+    'Arreglado problema de autenticación con usuarios activos'
+  ]},
   { version: '1.0.3', date: 'Marzo 2026', changes: [
     'Diseño mobile-first optimizado para dispositivos móviles',
     'Arreglado el guardado de FAQs',
