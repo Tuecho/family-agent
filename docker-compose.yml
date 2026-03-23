@@ -19,21 +19,12 @@ services:
       - "3000:3000"
     volumes:
       - ./backend/server.js:/app/server.js
-      - ./backend/node_modules:/app/node_modules
-      - db-data:/app
+      - api-db:/app
     env_file:
       - .env
     networks:
       - proxy-network
     restart: unless-stopped
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: cloudflared
-    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    restart: unless-stopped
-    networks:
-      - proxy-network
 
   nginx-proxy-manager:
     image: jc21/nginx-proxy-manager:latest
@@ -54,8 +45,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  db-data:
-    name: family-agent-db
+  api-db:
   npm-data:
   npm-letsencrypt:
 

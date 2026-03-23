@@ -26,6 +26,7 @@ export interface FamilyEvent {
   title: string;
   description?: string;
   date: string; // YYYY-MM-DD
+  end_date?: string; // YYYY-MM-DD for multi-day events
   start_time?: string; // HH:MM
   end_time?: string;   // HH:MM
   type?: string;

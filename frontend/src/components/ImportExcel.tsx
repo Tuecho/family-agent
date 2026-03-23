@@ -33,16 +33,19 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
       const validTypes = [
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         'application/vnd.ms-excel',
+        'text/csv',
         '.xlsx',
-        '.xls'
+        '.xls',
+        '.csv'
       ];
       
       if (!validTypes.some(type => 
         selectedFile.name.endsWith(type) || 
         selectedFile.type.includes('excel') || 
-        selectedFile.type.includes('spreadsheet')
+        selectedFile.type.includes('spreadsheet') ||
+        selectedFile.type.includes('csv')
       )) {
-        setError('Por favor, selecciona un archivo Excel válido (.xlsx o .xls)');
+        setError('Por favor, selecciona un archivo válido (.xlsx, .xls o .csv)');
         return;
       }
       
@@ -109,9 +112,9 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold flex items-center gap-2">
+                    <h3 className="text-xl font-bold flex items-center gap-2">
                 <FileSpreadsheet className="text-income" size={24} />
-                Importar desde Excel
+                Importar desde Excel/CSV
               </h3>
               <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
                 <X size={24} />
@@ -144,7 +147,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
                     <input
                       ref={fileInputRef}
                       type="file"
-                      accept=".xlsx,.xls"
+                      accept=".xlsx,.xls,.csv"
                       onChange={handleFileChange}
                       className="hidden"
                     />
@@ -166,7 +169,7 @@ export function ImportExcel({ onImportComplete }: { onImportComplete: () => void
                           Haz clic o arrastra un archivo Excel aquí
                         </p>
                         <p className="text-sm text-gray-400 mt-1">
-                          .xlsx o .xls
+                          .xlsx, .xls o .csv
                         </p>
                       </>
                     )}

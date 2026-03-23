@@ -2,6 +2,18 @@ import { useState, useEffect, useRef } from 'react';
 import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
+const FacebookIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+  </svg>
+);
+
+const TwitterIcon = () => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+  </svg>
+);
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 interface Task {
@@ -222,6 +234,16 @@ export function Tasks() {
     alert('¡Lista copiada al portapapeles!');
   };
 
+  const shareToFacebook = () => {
+    const text = encodeURIComponent(generateShareText());
+    window.open(`https://www.facebook.com/sharer/sharer.php?quote=${text}`, '_blank');
+  };
+
+  const shareToX = () => {
+    const text = encodeURIComponent(generateShareText());
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
+  };
+
   const generateTasksShareText = () => {
     const header = '📋 *Tareas Familiares*\n\n';
     const items = pendingFamilyTasks.map((task, i) => {
@@ -253,6 +275,16 @@ export function Tasks() {
     const text = generateTasksShareText().replace(/[*_]/g, '');
     await navigator.clipboard.writeText(text);
     alert('¡Tareas copiadas al portapapeles!');
+  };
+
+  const shareTasksToFacebook = () => {
+    const text = encodeURIComponent(generateTasksShareText());
+    window.open(`https://www.facebook.com/sharer/sharer.php?quote=${text}`, '_blank');
+  };
+
+  const shareTasksToX = () => {
+    const text = encodeURIComponent(generateTasksShareText());
+    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
   };
 
   return (
@@ -327,6 +359,20 @@ export function Tasks() {
                   >
                     <Copy size={16} />
                     Copiar
+                  </button>
+                  <button
+                    onClick={shareToFacebook}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <FacebookIcon />
+                    Facebook
+                  </button>
+                  <button
+                    onClick={shareToX}
+                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                  >
+                    <TwitterIcon />
+                    X
                   </button>
                 </div>
               </div>
@@ -473,6 +519,20 @@ export function Tasks() {
                   >
                     <Copy size={16} />
                     Copiar
+                  </button>
+                  <button
+                    onClick={shareTasksToFacebook}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    <FacebookIcon />
+                    Facebook
+                  </button>
+                  <button
+                    onClick={shareTasksToX}
+                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
+                  >
+                    <TwitterIcon />
+                    X
                   </button>
                 </div>
               </div>

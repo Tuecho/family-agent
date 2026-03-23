@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -8,6 +8,17 @@ interface User {
   id: number;
   username: string;
   is_admin: number;
+  status: string;
+  created_at: string;
+}
+
+interface Suggestion {
+  id: number;
+  user_id: number;
+  username: string;
+  type: string;
+  subject: string;
+  content: string;
   status: string;
   created_at: string;
 }
@@ -25,6 +36,7 @@ interface Stats {
 export function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 });
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState<User | null>(null);
@@ -35,9 +47,11 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions'>('users');
 
   useEffect(() => {
     fetchData();
+    fetchSuggestions();
   }, []);
 
   const fetchData = async () => {
@@ -57,6 +71,31 @@ export function AdminPage() {
       console.error('Error fetching data:', error);
     }
     setLoading(false);
+  };
+
+  const fetchSuggestions = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/suggestions`, { headers });
+      const data = await response.json();
+      setSuggestions(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching suggestions:', error);
+    }
+  };
+
+  const handleSuggestionAction = async (id: number, action: 'read' | 'delete') => {
+    try {
+      const headers = getAuthHeaders();
+      if (action === 'read') {
+        await fetch(`${API_URL}/api/suggestions/${id}/read`, { method: 'PUT', headers });
+      } else {
+        await fetch(`${API_URL}/api/suggestions/${id}`, { method: 'DELETE', headers });
+      }
+      fetchSuggestions();
+    } catch (error) {
+      console.error('Error handling suggestion:', error);
+    }
   };
 
   const handleCreateUser = async () => {
@@ -259,6 +298,38 @@ export function AdminPage() {
         </button>
       </div>
 
+      <div className="flex gap-4 mb-6 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`pb-3 px-2 font-medium transition-colors ${
+            activeTab === 'users'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Users size={16} className="inline mr-2" />
+          Usuarios
+        </button>
+        <button
+          onClick={() => setActiveTab('suggestions')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-2 ${
+            activeTab === 'suggestions'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Lightbulb size={16} className="inline mr-1" />
+          Sugerencias
+          {suggestions.filter(s => s.status === 'pending').length > 0 && (
+            <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full">
+              {suggestions.filter(s => s.status === 'pending').length}
+            </span>
+          )}
+        </button>
+      </div>
+
+      {activeTab === 'users' && (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-lg p-4 border border-gray-200">
           <div className="flex items-center justify-between">
@@ -493,6 +564,84 @@ export function AdminPage() {
           </div>
         )}
       </div>
+      </>
+      )}
+
+      {activeTab === 'suggestions' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-gray-600">
+                <Lightbulb size={18} />
+                <span className="font-medium">Sugerencias de usuarios</span>
+              </div>
+              <button onClick={fetchSuggestions} className="text-sm text-primary hover:underline flex items-center gap-1">
+                <Loader2 size={14} />
+                Actualizar
+              </button>
+            </div>
+          </div>
+
+          {suggestions.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Lightbulb size={40} className="mx-auto mb-4 text-gray-300" />
+              <p>No hay sugerencias</p>
+              <p className="text-sm mt-1">Las sugerencias de los usuarios aparecerán aquí</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {suggestions.map((suggestion) => (
+                <div key={suggestion.id} className={`p-4 ${suggestion.status === 'pending' ? 'bg-yellow-50/50' : ''}`}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        {suggestion.type === 'bug' ? (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700">Error</span>
+                        ) : suggestion.type === 'feedback' ? (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">Feedback</span>
+                        ) : (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">Idea</span>
+                        )}
+                        {suggestion.status === 'pending' && (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700">Pendiente</span>
+                        )}
+                        {suggestion.status === 'read' && (
+                          <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">Leído</span>
+                        )}
+                        <span className="text-xs text-gray-400">
+                          {suggestion.username} • {new Date(suggestion.created_at).toLocaleDateString('es')}
+                        </span>
+                      </div>
+                      {suggestion.subject && (
+                        <h4 className="font-medium text-gray-800 mb-1">{suggestion.subject}</h4>
+                      )}
+                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{suggestion.content}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {suggestion.status === 'pending' && (
+                        <button
+                          onClick={() => handleSuggestionAction(suggestion.id, 'read')}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Marcar como leído"
+                        >
+                          <Eye size={16} />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleSuggestionAction(suggestion.id, 'delete')}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Eliminar"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">

@@ -1,8 +1,9 @@
-import React, { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield } from 'lucide-react';
+import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
+import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle } from 'lucide-react';
 
 const STORAGE_KEY = 'family_agent_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
 
 interface AuthUser {
   id: number;
@@ -12,6 +13,28 @@ interface AuthUser {
   created_at: string;
 }
 
+const validatePassword = (password: string): { valid: boolean; errors: string[] } => {
+  const errors: string[] = [];
+  
+  if (password.length < 8) {
+    errors.push('Al menos 8 caracteres');
+  }
+  if (!/[A-Z]/.test(password)) {
+    errors.push('Una mayúscula');
+  }
+  if (!/[a-z]/.test(password)) {
+    errors.push('Una minúscula');
+  }
+  if (!/[0-9]/.test(password)) {
+    errors.push('Un número');
+  }
+  if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
+    errors.push('Un carácter especial (!@#$%^&*)');
+  }
+  
+  return { valid: errors.length === 0, errors };
+};
+
 export function Login({ onLogin }: { onLogin: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -20,7 +43,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showRegister, setShowRegister] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,16 +61,26 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         setError(data?.error || 'Credenciales incorrectas');
         return;
       }
+      const lastActivity = Date.now();
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
         authenticated: true, 
         username: username.trim(),
         password: password,
         isAdmin: data.isAdmin,
-        userId: data.userId 
+        userId: data.userId,
+        lastActivity 
       }));
       onLogin();
     } catch {
       setError('Error de conexión con la API');
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (showRegister) {
+      const { errors } = validatePassword(value);
+      setPasswordErrors(errors);
     }
   };
 
@@ -60,10 +93,13 @@ export function Login({ onLogin }: { onLogin: () => void }) {
       setError('El usuario debe tener al menos 3 caracteres');
       return;
     }
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+
+    const { valid, errors } = validatePassword(password);
+    if (!valid) {
+      setError('La contraseña debe tener: ' + errors.join(', '));
       return;
     }
+
     if (password !== confirmPassword) {
       setError('Las contraseñas no coinciden');
       return;
@@ -86,6 +122,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         setUsername('');
         setPassword('');
         setConfirmPassword('');
+        setPasswordErrors([]);
       }, 2000);
     } catch {
       setError('Error de conexión con la API');
@@ -93,8 +130,8 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
+    <div className="min-h-screen bg-gradient-to-br from-primary via-pink-500 to-indigo-600 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-8">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
             <Lock className="text-primary" size={32} />
@@ -147,7 +184,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => handlePasswordChange(e.target.value)}
                   placeholder="••••••"
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   required
@@ -160,6 +197,22 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+              {showRegister && password && (
+                <div className="mt-2 text-xs space-y-1">
+                  {passwordErrors.map((err, i) => (
+                    <div key={i} className="flex items-center gap-1 text-red-500">
+                      <X size={12} />
+                      {err}
+                    </div>
+                  ))}
+                  {passwordErrors.length === 0 && (
+                    <div className="flex items-center gap-1 text-green-500">
+                      <Check size={12} />
+                      Contraseña segura
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div>
@@ -451,6 +504,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return getStoredAuth().isAdmin;
   });
 
+  const logout = useCallback(() => {
+    localStorage.removeItem(STORAGE_KEY);
+    setIsAuthenticated(false);
+    setIsAdmin(false);
+    window.dispatchEvent(new Event('storage'));
+  }, []);
+
   useEffect(() => {
     const checkAuth = () => {
       const auth = getStoredAuth();
@@ -462,17 +522,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', checkAuth);
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let timeoutId: NodeJS.Timeout;
+
+    const resetTimer = () => {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const auth = JSON.parse(stored);
+        auth.lastActivity = Date.now();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(auth));
+      }
+      
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        logout();
+      }, INACTIVITY_TIMEOUT);
+    };
+
+    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(event => {
+      window.addEventListener(event, resetTimer, { passive: true });
+    });
+
+    resetTimer();
+
+    return () => {
+      clearTimeout(timeoutId);
+      events.forEach(event => {
+        window.removeEventListener(event, resetTimer);
+      });
+    };
+  }, [isAuthenticated, logout]);
+
   const login = () => {
     const stored = getStoredAuth();
     setIsAdmin(!!stored.isAdmin);
     setIsAuthenticated(!!stored.authenticated);
-  };
-
-  const logout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setIsAuthenticated(false);
-    setIsAdmin(false);
-    window.dispatchEvent(new Event('storage'));
   };
 
   const getAuth = () => {

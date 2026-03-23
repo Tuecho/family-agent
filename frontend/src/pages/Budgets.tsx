@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, TrendingDown, Pencil } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, Pencil, RefreshCw, Copy } from 'lucide-react';
 import { useStore } from '../store';
 import type { ExpenseConceptItem } from '../types';
 import { formatMoneyEs } from '../utils/format';
@@ -24,6 +24,7 @@ interface BudgetWithSpending {
   amount: number;
   month: number;
   year: number;
+  recurring: number;
   spent: number;
   remaining: number;
   percentage: number;
@@ -88,7 +89,8 @@ export function Budgets() {
     concept: 'comida',
     amount: '',
     month: String(new Date().getMonth() + 1),
-    year: String(new Date().getFullYear())
+    year: String(new Date().getFullYear()),
+    recurring: false
   });
 
   const fetchBudgets = async () => {
@@ -112,6 +114,35 @@ export function Budgets() {
     fetchBudgets();
   }, [fetchConcepts]);
 
+  const copyRecurringBudgets = async () => {
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const nextMonth = currentMonth === 12 ? 1 : currentMonth + 1;
+    const nextYear = currentMonth === 12 ? currentYear + 1 : currentYear;
+
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/budgets/copy-recurring`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          fromMonth: currentMonth,
+          fromYear: currentYear,
+          toMonth: nextMonth,
+          toYear: nextYear
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        alert(`Se han copiado ${data.copied} presupuestos recurrentes al próximo mes`);
+        fetchBudgets();
+      }
+    } catch (error) {
+      console.error('Error copying recurring budgets:', error);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.amount) return;
@@ -129,7 +160,8 @@ export function Budgets() {
           concept: formData.concept,
           amount: parseFloat(formData.amount),
           month: parseInt(formData.month),
-          year: parseInt(formData.year)
+          year: parseInt(formData.year),
+          recurring: formData.recurring
         })
       });
 
@@ -137,7 +169,8 @@ export function Budgets() {
         concept: 'comida',
         amount: '',
         month: String(new Date().getMonth() + 1),
-        year: String(new Date().getFullYear())
+        year: String(new Date().getFullYear()),
+        recurring: false
       });
       setShowModal(false);
       setEditing(null);
@@ -218,6 +251,14 @@ export function Budgets() {
         <h2 className="text-2xl font-bold text-gray-800">Presupuestos</h2>
         <div className="flex items-center gap-3">
           <button
+            onClick={copyRecurringBudgets}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-purple-200 text-purple-700 hover:bg-purple-50 transition-colors"
+            title="Copiar presupuestos recurrentes al próximo mes"
+          >
+            <Copy size={18} />
+            <span className="hidden sm:inline">Copiar recurrentes</span>
+          </button>
+          <button
             onClick={() => setShowConceptsModal(true)}
             className="px-4 py-2 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
           >
@@ -277,7 +318,14 @@ export function Budgets() {
           {budgets.map((budget) => (
             <div key={budget.id} className="bg-white rounded-lg p-6 shadow-sm border border-gray-100">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-800">{conceptLabelByKey[budget.concept] || budget.concept}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-800">{conceptLabelByKey[budget.concept] || budget.concept}</h3>
+                  {budget.recurring === 1 && (
+                    <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full flex items-center gap-1" title="Presupuesto recurrente">
+                      🔄
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => openEdit(budget)}
@@ -379,6 +427,21 @@ export function Budgets() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="border-t border-gray-100 pt-4 mt-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.recurring}
+                    onChange={(e) => setFormData({ ...formData, recurring: e.target.checked })}
+                    className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
+                  />
+                  <div>
+                    <span className="font-medium text-gray-700">Presupuesto recurrente</span>
+                    <p className="text-xs text-gray-500">Se copiará automáticamente al siguiente mes</p>
+                  </div>
+                </label>
               </div>
 
               <div className="flex gap-3 pt-4">

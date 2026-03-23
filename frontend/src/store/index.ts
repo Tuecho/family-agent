@@ -225,10 +225,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   getMonthlyTransactions: () => {
-    const { selectedMonth, selectedYear } = get();
+    const { selectedMonth, selectedYear, transactions } = get();
     const mm = String(selectedMonth).padStart(2, '0');
     const yyyy = String(selectedYear);
-    return get().transactions.filter((t) => t.date?.slice(0, 7) === `${yyyy}-${mm}`);
+    const txList = Array.isArray(transactions) ? transactions : [];
+    return txList.filter((t) => t.date?.slice(0, 7) === `${yyyy}-${mm}`);
   },
 
   getTotals: () => {

@@ -63,6 +63,7 @@ export function Agenda() {
     title: '',
     description: '',
     date: formatISODate(new Date()),
+    end_date: '',
     start_time: '',
     end_time: '',
     type: '',
@@ -113,6 +114,7 @@ export function Agenda() {
       title: '',
       description: '',
       date: date || formatISODate(currentDate),
+      end_date: '',
       start_time: '',
       end_time: '',
       type: '',
@@ -129,6 +131,7 @@ export function Agenda() {
       title: event.title,
       description: event.description || '',
       date: event.date,
+      end_date: (event as any).end_date || '',
       start_time: event.start_time || '',
       end_time: event.end_time || '',
       type: event.type || '',
@@ -153,6 +156,7 @@ export function Agenda() {
       title: formData.title,
       description: formData.description,
       date: formData.date,
+      end_date: formData.end_date || null,
       start_time: formData.start_time,
       end_time: formData.end_time,
       type: formData.type,
@@ -478,6 +482,11 @@ export function Agenda() {
                           🔄 Semanal {ev.days_of_week ? `(${getDaysLabel(ev.days_of_week)})` : ''}
                         </p>
                       )}
+                      {ev.end_date && (
+                        <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
+                          📅 Varios días: hasta {new Date(ev.end_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        </p>
+                      )}
                     </div>
                     <div className="flex flex-col gap-1 ml-2">
                       <button
@@ -534,7 +543,7 @@ export function Agenda() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha
+                    Fecha inicio
                   </label>
                   <input
                     type="date"
@@ -546,16 +555,27 @@ export function Agenda() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo
+                    Fecha fin
                   </label>
                   <input
-                    type="text"
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    placeholder="Cole, médico, ocio..."
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                    type="date"
+                    value={formData.end_date}
+                    onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo
+                </label>
+                <input
+                  type="text"
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  placeholder="Cole, médico, ocio..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -594,15 +614,55 @@ export function Agenda() {
                 </div>
               </div>
               <div className="border-t border-gray-100 pt-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.recurrence === 'weekly'}
-                    onChange={(e) => setFormData({ ...formData, recurrence: e.target.checked ? 'weekly' : '' })}
-                    className="w-4 h-4 text-primary rounded border-gray-300 focus:ring-primary"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Repetir semanalmente</span>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Repetición
                 </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, recurrence: '', days_of_week: [] })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      formData.recurrence === '' 
+                        ? 'bg-primary text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    No repetir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, recurrence: 'daily', days_of_week: [] })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      formData.recurrence === 'daily' 
+                        ? 'bg-primary text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Diariamente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, recurrence: 'weekly', days_of_week: [] })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      formData.recurrence === 'weekly' 
+                        ? 'bg-primary text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Semanal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, recurrence: 'monthly', days_of_week: [] })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      formData.recurrence === 'monthly' 
+                        ? 'bg-primary text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Mensualmente
+                  </button>
+                </div>
                 {formData.recurrence === 'weekly' && (
                   <div className="mt-3">
                     <p className="text-xs text-gray-500 mb-2">Días de la semana:</p>
@@ -640,6 +700,12 @@ export function Agenda() {
                       <p className="text-xs text-expense mt-1">Selecciona al menos un día</p>
                     )}
                   </div>
+                )}
+                {formData.recurrence === 'monthly' && (
+                  <p className="text-xs text-gray-500 mt-2">Se repetirá el mismo día cada mes</p>
+                )}
+                {formData.recurrence === 'daily' && (
+                  <p className="text-xs text-gray-500 mt-2">Se repetirá cada día</p>
                 )}
               </div>
               <div className="flex gap-3 pt-4">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Bot, Target, MessageCircle, User, Shield, HelpCircle, Info, CheckSquare } from 'lucide-react';
+import { Home, Wallet, Bot, Target, MessageCircle, User, Shield, HelpCircle, Info, CheckSquare, StickyNote, ShoppingCart, ListChecks } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -11,8 +11,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'tasks' | 'admin' | 'faq' | 'about';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'tasks' | 'admin' | 'faq' | 'about') => void;
+  activePage: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'chatbot' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'faq' | 'about') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -109,6 +109,20 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
           </li>
           <li>
             <button
+              onClick={() => onNavigate('shopping')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'shopping'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Lista Compra'}
+            >
+              <ShoppingCart size={18} />
+              {isExpanded && <span className="text-sm">Lista Compra</span>}
+            </button>
+          </li>
+          <li>
+            <button
               onClick={() => onNavigate('tasks')}
               className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
                 activePage === 'tasks'
@@ -117,8 +131,22 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
               title={isExpanded ? undefined : 'Tareas'}
             >
-              <CheckSquare size={18} />
+              <ListChecks size={18} />
               {isExpanded && <span className="text-sm">Tareas</span>}
+            </button>
+          </li>
+          <li>
+            <button
+              onClick={() => onNavigate('notes')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'notes'
+                  ? 'bg-primary text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Notas'}
+            >
+              <StickyNote size={18} />
+              {isExpanded && <span className="text-sm">Notas</span>}
             </button>
           </li>
           <li>

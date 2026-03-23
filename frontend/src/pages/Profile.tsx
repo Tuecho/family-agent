@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
-import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { User, Mail, Phone, Users, Save, Loader2, Trash2, AlertTriangle, LogOut, Share2, UserPlus, Check, X, Download, Upload } from 'lucide-react';
 import { NotificationSettings } from '../components/NotificationSettings';
+import { ImportDB } from '../components/ImportDB';
 import { useAuth } from '../components/Auth';
 import { getAuthHeaders } from '../utils/auth';
 
@@ -135,6 +136,68 @@ export function Profile() {
     }
   };
 
+  const handleExportData = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/export`, { headers });
+      const data = await response.json();
+      
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `family-agent-backup-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Error al exportar los datos');
+    }
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportData = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      
+      if (!confirm('¿Estás seguro de importar estos datos? Se añadirán a los datos existentes.')) {
+        return;
+      }
+
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/import`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data)
+      });
+
+      if (response.ok) {
+        alert('¡Datos importados correctamente!');
+        window.location.reload();
+      } else {
+        alert('Error al importar los datos');
+      }
+    } catch (error) {
+      console.error('Error importing data:', error);
+      alert('Error al leer el archivo');
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   useEffect(() => {
     fetchInvitations();
   }, []);
@@ -144,6 +207,8 @@ export function Profile() {
     setSaving(true);
     setSaved(false);
 
+    console.log('Submitting profile with avatar length:', profile.avatar ? profile.avatar.length : 'null');
+
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const response = await fetch(`${API_URL}/api/profile`, {
@@ -152,7 +217,10 @@ export function Profile() {
         body: JSON.stringify(profile)
       });
       
+      console.log('Response status:', response.status);
       const data = await response.json();
+      console.log('Response avatar length:', data.avatar ? data.avatar.length : 'null');
+      
       if (response.ok) {
         setProfile(data);
         setSaved(true);
@@ -172,8 +240,10 @@ export function Profile() {
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      console.log('Avatar file selected:', file.name, 'size:', file.size);
       const reader = new FileReader();
       reader.onloadend = () => {
+        console.log('Avatar read complete, length:', (reader.result as string).length);
         setProfile(prev => ({ ...prev, avatar: reader.result as string }));
       };
       reader.readAsDataURL(file);
@@ -452,6 +522,72 @@ export function Profile() {
                 No has compartido datos ni tienes invitaciones pendientes.
               </p>
             )}
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Backup y Restauración</h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Download className="text-blue-500 flex-shrink-0 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-blue-800">Exportar datos</h4>
+                    <p className="text-sm text-blue-600 mt-1">
+                      Descarga una copia de seguridad de todos tus datos: transacciones, presupuestos, eventos y tareas.
+                    </p>
+                    <button
+                      onClick={handleExportData}
+                      className="mt-3 flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm"
+                    >
+                      <Download size={16} />
+                      Descargar backup
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Upload className="text-green-500 flex-shrink-0 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-green-800">Importar datos</h4>
+                    <p className="text-sm text-green-600 mt-1">
+                      Restaura tus datos desde un archivo de backup. Los datos se añadirán a los existentes.
+                    </p>
+                    <button
+                      onClick={handleImportData}
+                      className="mt-3 flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition-colors text-sm"
+                    >
+                      <Upload size={16} />
+                      Restaurar backup
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept=".json"
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <Upload className="text-purple-500 flex-shrink-0 mt-0.5" size={20} />
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-purple-800">Importar base de datos (.db)</h4>
+                    <p className="text-sm text-purple-600 mt-1">
+                      Restaura una base de datos completa desde un archivo .db. Solo administradores.
+                    </p>
+                    <div className="mt-3">
+                      <ImportDB onImportComplete={() => window.location.reload()} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="mt-8 pt-6 border-t border-gray-200">

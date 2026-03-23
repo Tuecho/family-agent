@@ -432,19 +432,28 @@ export function Dashboard() {
   }, {} as Record<string, string>);
 
   return (
-    <div className="p-8">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-3 sm:p-4 md:p-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Dashboard</h2>
-          <p className="text-sm text-gray-500 capitalize">{monthLabel}</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Dashboard</h2>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1 sm:gap-2">
           <button
             onClick={() => changeMonth(-1)}
             className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
             title="Mes anterior"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={16} className="sm:w-[18px] sm:h-[18px]" />
+          </button>
+          <span className="px-2 sm:px-4 py-2 font-semibold text-gray-700 capitalize min-w-[110px] sm:min-w-[140px] text-center text-sm sm:text-base">
+            {monthLabel}
+          </span>
+          <button
+            onClick={() => changeMonth(1)}
+            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            title="Mes siguiente"
+          >
+            <ChevronRight size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
           {!isCurrentMonth() && (
             <button
@@ -452,108 +461,101 @@ export function Dashboard() {
                 const now = new Date();
                 setSelectedMonthYear(now.getMonth() + 1, now.getFullYear());
               }}
-              className="px-3 py-2 rounded-lg border border-primary text-primary text-sm hover:bg-primary/5 transition-colors"
+              className="px-2 sm:px-3 py-2 rounded-lg border border-primary text-primary text-xs sm:text-sm hover:bg-primary/5 transition-colors"
             >
-              Mes actual
+              Hoy
             </button>
           )}
-          <button
-            onClick={() => changeMonth(1)}
-            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-            title="Mes siguiente"
-          >
-            <ChevronRight size={18} />
-          </button>
         </div>
       </div>
       
       {loading && (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="animate-spin text-primary" size={40} />
+        <div className="flex items-center justify-center py-8 sm:py-12">
+          <Loader2 className="animate-spin text-primary" size={32} />
         </div>
       )}
 
-      <div className="mb-8">
-        <div className="text-center py-6 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-2xl">
-          <div className="inline-flex items-center gap-3">
-            <Heart className="text-pink-500 animate-pulse" size={28} />
+      <div className="mb-4 sm:mb-6">
+        <div className="text-center py-4 sm:py-6 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-xl sm:rounded-2xl">
+          <div className="inline-flex items-center gap-2 sm:gap-3">
+            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
             <div>
-              <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
+              <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
                 🏠 {profile.family_name}
               </h2>
-              <p className="text-gray-500 mt-1 flex items-center justify-center gap-2">
-                <span>💰</span>
-                Gestionando las finanzas con <span className="font-semibold text-primary">Family Agent</span>
-                <span>💖</span>
+              <p className="text-gray-500 mt-1 text-xs sm:text-sm">
+                💰 Gestionando las finanzas con <span className="font-semibold text-primary">Family Agent</span> 💖
               </p>
             </div>
-            <Heart className="text-pink-500 animate-pulse" size={28} />
+            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
           </div>
         </div>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-income/10 flex items-center justify-center">
-            <TrendingUp className="text-income" size={28} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-income/10 flex items-center justify-center flex-shrink-0">
+            <TrendingUp className="text-income" size={20} />
           </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Ingresos</p>
-            <p className="text-2xl font-bold text-income">{formatMoneyEs(totals.income)}</p>
-          </div>
-        </div>
-        
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-expense/10 flex items-center justify-center">
-            <TrendingDown className="text-expense" size={28} />
-          </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Gastos</p>
-            <p className="text-2xl font-bold text-expense">{formatMoneyEs(totals.expense)}</p>
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm text-gray-500">Ingresos</p>
+            <p className="text-lg sm:text-2xl font-bold text-income truncate">{formatMoneyEs(totals.income)}</p>
           </div>
         </div>
         
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
-          <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+        <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-expense/10 flex items-center justify-center flex-shrink-0">
+            <TrendingDown className="text-expense" size={20} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm text-gray-500">Gastos</p>
+            <p className="text-lg sm:text-2xl font-bold text-expense truncate">{formatMoneyEs(totals.expense)}</p>
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3 sm:col-span-1 col-span-1">
+          <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0 ${
             totals.balance >= 0 ? 'bg-income/10' : 'bg-expense/10'
           }`}>
-            <Wallet className={totals.balance >= 0 ? 'text-income' : 'text-expense'} size={28} />
+            <Wallet className={totals.balance >= 0 ? 'text-income' : 'text-expense'} size={20} />
           </div>
-          <div>
-            <p className="text-sm text-gray-500 mb-1">Balance</p>
-            <p className={`text-2xl font-bold ${totals.balance >= 0 ? 'text-income' : 'text-expense'}`}>
+          <div className="min-w-0">
+            <p className="text-xs sm:text-sm text-gray-500">Balance</p>
+            <p className={`text-lg sm:text-2xl font-bold truncate ${totals.balance >= 0 ? 'text-income' : 'text-expense'}`}>
               {formatMoneyEs(totals.balance)}
             </p>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold mb-6 text-center">Distribución Ingresos vs Gastos</h3>
-          <DonutChart income={totals.income} expense={totals.expense} balance={totals.balance} />
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center">Ingresos vs Gastos</h3>
+          <div className="flex justify-center">
+            <DonutChart income={totals.income} expense={totals.expense} balance={totals.balance} size={160} strokeWidth={24} />
+          </div>
         </div>
         
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-          <h3 className="text-lg font-semibold mb-6">Balance Mensual</h3>
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6">Balance Mensual</h3>
           <BalanceBar balance={totals.balance} income={totals.income} expense={totals.expense} />
         </div>
       </div>
 
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <div className="flex items-center gap-2 mb-6">
-          <Target className="text-primary" size={24} />
-          <h3 className="text-lg font-semibold">Presupuestos del Mes</h3>
+      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <div className="flex items-center gap-2 mb-4 sm:mb-6">
+          <Target className="text-primary" size={20} className="sm:w-6 sm:h-6" />
+          <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
         </div>
         
         {budgets.length === 0 ? (
-          <div className="text-center py-12">
-            <span className="text-5xl mb-4 block">🎯</span>
-            <p className="text-gray-500 mb-2">No hay presupuestos establecidos para este mes</p>
-            <p className="text-sm text-gray-400">Ve a la sección de Presupuestos para crear uno</p>
+          <div className="text-center py-8 sm:py-12">
+            <span className="text-4xl sm:text-5xl mb-4 block">🎯</span>
+            <p className="text-gray-500 mb-2 text-sm">No hay presupuestos establecidos</p>
+            <p className="text-xs sm:text-sm text-gray-400">Ve a Presupuestos para crear uno</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 gap-3">
             {budgets.map((budget) => (
               <BudgetCard key={budget.id} budget={budget} />
             ))}
@@ -561,21 +563,21 @@ export function Dashboard() {
         )}
       </div>
 
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mt-6">
+      <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mt-3 sm:mt-6">
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="text-primary" size={24} />
-          <h3 className="text-lg font-semibold">Evolución Mensual (Últimos 6 meses)</h3>
+          <TrendingUp className="text-primary" size={20} className="sm:w-6 sm:h-6" />
+          <h3 className="text-base sm:text-lg font-semibold">Evolución (6 meses)</h3>
         </div>
         <MonthlyChart data={monthlyData} />
       </div>
 
-      <footer className="mt-12 pt-8 border-t border-gray-200">
-        <div className="text-center text-gray-500 text-sm">
+      <footer className="mt-8 sm:mt-12 pt-4 sm:pt-8 border-t border-gray-200">
+        <div className="text-center text-gray-500 text-xs sm:text-sm">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <Home size={16} className="text-primary" />
+            <Home size={14} className="text-primary" />
             <span className="font-semibold text-gray-700">Family Agent</span>
           </div>
-          <p className="mb-1">© {new Date().getFullYear()} {profile.family_name}. Todos los derechos reservados.</p>
+          <p className="mb-1">© {new Date().getFullYear()} Family Agent</p>
           <p className="text-xs text-gray-400">
             Hecho con <span className="text-red-500">❤</span> para las familias
           </p>
