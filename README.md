@@ -44,9 +44,7 @@ Aplicación web para la gestión de la economía familiar, agenda y planificaci�
 ### Inteligencia Artificial
 - **Chatbot IA**: Asistente con Groq (LLaMA 3.3) para analizar tus finanzas
 - **Modo SQL rápido**: Consulta tus datos en lenguaje natural
-
-### Internacionalización
-- **Multiidioma**: Selector de idioma (Español, English, Português)
+- **Modo avanzado**: Usa IA generativa con Groq para preguntas complejas
 
 ### Extra
 - **Recordar posición**: Al recargar la app se mantiene en la misma página
