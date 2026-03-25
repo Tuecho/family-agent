@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment as ReactFragment } from 'react';
 import { Utensils, Users, Plus, X, Trash2, Edit2, Heart, ShoppingCart, ChevronLeft, ChevronRight, Save, ChefHat, AlertTriangle, Baby, User, GraduationCap, Accessibility } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
@@ -328,22 +328,23 @@ export function MealPlanning() {
 
       {activeTab === 'planning' && (
         <>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-4">
+            <div className="flex items-center justify-center gap-2">
               <button onClick={() => changeWeek(-1)} className="p-2 bg-white rounded-lg border hover:bg-gray-50">
                 <ChevronLeft size={20} />
               </button>
-              <span className="font-medium px-4">{formatDateRange()}</span>
+              <span className="font-medium px-2 sm:px-4 text-sm sm:text-base">{formatDateRange()}</span>
               <button onClick={() => changeWeek(1)} className="p-2 bg-white rounded-lg border hover:bg-gray-50">
                 <ChevronRight size={20} />
               </button>
             </div>
             <button
               onClick={() => { fetchShoppingList(); setShowShoppingModal(true); }}
-              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
             >
               <ShoppingCart size={18} />
-              Lista de compra
+              <span className="hidden sm:inline">Lista de compra</span>
+              <span className="sm:hidden">Compra</span>
             </button>
           </div>
 
@@ -363,7 +364,7 @@ export function MealPlanning() {
             </div>
           )}
 
-          <div className="overflow-x-auto">
+          <div className="hidden md:block overflow-x-auto">
             <div className="grid grid-cols-8 gap-2 min-w-[800px]">
               <div className="sticky left-0 bg-white p-2 font-medium text-sm text-gray-500"></div>
               {DAYS.map(day => (
@@ -373,8 +374,8 @@ export function MealPlanning() {
               ))}
               
               {MEAL_TYPES.map(meal => (
-                <>
-                  <div key={meal} className="sticky left-0 bg-white p-2 font-medium text-sm text-gray-600 flex items-center">
+                <ReactFragment key={meal}>
+                  <div className="sticky left-0 bg-white p-2 font-medium text-sm text-gray-600 flex items-center">
                     {MEAL_LABELS[meal]}
                   </div>
                   {DAYS.map((_, idx) => {
@@ -414,9 +415,57 @@ export function MealPlanning() {
                       </div>
                     );
                   })}
-                </>
+                </ReactFragment>
               ))}
             </div>
+          </div>
+
+          <div className="md:hidden space-y-4">
+            {DAYS.map((day, dayIdx) => (
+              <div key={day} className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                <div className="bg-orange-100 p-3 text-center font-semibold">
+                  {day}
+                </div>
+                <div className="p-3 space-y-3">
+                  {MEAL_TYPES.map(meal => {
+                    const plan = getMealForSlot(dayIdx + 1, meal);
+                    const warnings = plan ? checkRecipeCompatibility(recipes.find(r => r.id === plan.recipe_id) || { restrictions: '', contains: '' }) : [];
+                    return (
+                      <div key={meal} className="flex items-center gap-3">
+                        <span className="text-xs font-medium text-gray-500 w-16">{MEAL_LABELS[meal]}</span>
+                        {plan ? (
+                          <div className="flex-1 flex items-center justify-between bg-gray-50 rounded-lg p-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-800 truncate">{plan.recipe_name}</p>
+                              {warnings.length > 0 && (
+                                <p className="text-xs text-red-500">{warnings[0]}</p>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => handleRemoveMeal(plan.id)}
+                              className="p-1 text-red-400 hover:text-red-600"
+                            >
+                              <X size={16} />
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setSelectedSlot({ day: dayIdx + 1, meal });
+                              setShowPlanModal(true);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-2 bg-gray-50 rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                          >
+                            <Plus size={16} />
+                            <span className="text-sm">Añadir</span>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </>
       )}

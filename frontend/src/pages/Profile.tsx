@@ -76,6 +76,7 @@ export function Profile() {
   const [saved, setSaved] = useState(false);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
+  const [availableUsers, setAvailableUsers] = useState<{id: number; username: string}[]>([]);
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState('');
@@ -99,6 +100,19 @@ export function Profile() {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  const fetchAvailableUsers = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/users`, { headers });
+      if (response.ok) {
+        const users = await response.json();
+        setAvailableUsers(users);
+      }
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    }
+  };
 
   const fetchProfile = async () => {
     try {
@@ -226,6 +240,8 @@ export function Profile() {
       share_family_members: false
     });
     setInviteUsername('');
+    setAvailableUsers([]);
+    fetchAvailableUsers();
     setShowShareModal(true);
   };
 
@@ -666,7 +682,7 @@ export function Profile() {
                   <h3 className="text-lg font-semibold text-gray-800">
                     {editingShare ? 'Editar compartición' : 'Compartir datos'}
                   </h3>
-                  <button onClick={() => setShowShareModal(false)} className="text-gray-500 hover:text-gray-700">
+                  <button onClick={() => { setShowShareModal(false); setInviteUsername(''); }} className="text-gray-500 hover:text-gray-700">
                     <X size={20} />
                   </button>
                 </div>
@@ -676,13 +692,26 @@ export function Profile() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Usuario
                     </label>
-                    <input
-                      type="text"
-                      value={inviteUsername}
-                      onChange={(e) => setInviteUsername(e.target.value)}
-                      placeholder="Nombre de usuario"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
-                    />
+                    {availableUsers.length > 0 ? (
+                      <select
+                        value={inviteUsername}
+                        onChange={(e) => setInviteUsername(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                      >
+                        <option value="">Selecciona un usuario...</option>
+                        {availableUsers.map((user) => (
+                          <option key={user.id} value={user.username}>{user.username}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={inviteUsername}
+                        onChange={(e) => setInviteUsername(e.target.value)}
+                        placeholder="Nombre de usuario"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                      />
+                    )}
                     {inviteError && <p className="text-expense text-sm mt-1">{inviteError}</p>}
                   </div>
                 )}

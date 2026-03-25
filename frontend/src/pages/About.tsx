@@ -4,7 +4,7 @@ import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const version = '1.0.5';
+const version = '1.0.6';
 
 const shareText = 'Echa un vistazo a Family Agent, una aplicación para gestionar las finanzas familiares. ¡Increíble!';
 const shareUrl = 'https://github.com/Tuecho/family-agent';
@@ -25,6 +25,13 @@ const shareX = () => {
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
 };
 const features = [
+  { version: '1.0.6', date: 'Marzo 2026', changes: [
+    'Fix: Error al actualizar perfil de usuario normal',
+    'Lista de usuarios disponibles para compartir datos',
+    'Restaurantes y tableros de notas ahora se comparten correctamente',
+    'Backup completo: todas las tablas de la base de datos incluidas',
+    'UI móvil mejorada para planificación de comidas'
+  ]},
   { version: '1.0.5', date: 'Marzo 2026', changes: [
     'Múltiples listas de compra con nombre y color',
     'Múltiples tableros de notas organizados por secciones',

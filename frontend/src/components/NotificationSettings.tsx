@@ -28,6 +28,7 @@ const TIMEZONES = [
 ];
 
 export function NotificationSettings() {
+  console.log('NotificationSettings component RENDERED');
   const [settings, setSettings] = useState<NotificationSettings>({
     email_enabled: 0,
     email_to: '',
@@ -45,6 +46,7 @@ export function NotificationSettings() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
+    console.log('NotificationSettings useEffect triggered');
     fetchSettings();
   }, []);
 
@@ -52,6 +54,7 @@ export function NotificationSettings() {
     try {
       const resp = await fetch(`${API_URL}/api/notifications/settings`, { headers: getAuthHeaders() });
       const data = await resp.json();
+      console.log('fetchSettings response:', JSON.stringify(data));
       setSettings({
         email_enabled: data.email_enabled || 0,
         email_to: data.email_to || '',
@@ -61,6 +64,11 @@ export function NotificationSettings() {
         notify_time: data.notify_time || '22:00',
         notify_timezone: data.notify_timezone || 'Europe/Madrid'
       });
+      const hasPassword = (data.has_smtp_password === true || data.has_smtp_password === 1) || (data.smtp_user && data.email_to);
+      console.log('hasPassword calculated:', hasPassword, 'data.smtp_user:', !!data.smtp_user, 'data.email_to:', !!data.email_to);
+      if (hasPassword) {
+        setSavedPassword('__saved__');
+      }
     } catch (error) {
       console.error('Error fetching settings:', error);
     } finally {
@@ -83,7 +91,7 @@ export function NotificationSettings() {
       if (data.success) {
         setMessage({ type: 'success', text: 'Configuración guardada' });
         if (smtpPassword) {
-          setSavedPassword(smtpPassword);
+          setSavedPassword('__saved__');
         }
         setSmtpPassword('');
       } else {
@@ -97,14 +105,14 @@ export function NotificationSettings() {
   };
 
   const handleTest = async () => {
+    console.log('handleTest called');
+    console.log('email_to:', settings.email_to);
+    console.log('smtp_user:', settings.smtp_user);
+    console.log('smtpPassword:', smtpPassword);
+    console.log('savedPassword:', savedPassword);
+    
     if (!settings.email_to || !settings.smtp_user) {
       setMessage({ type: 'error', text: 'Completa el email destino y usuario SMTP' });
-      return;
-    }
-
-    const passwordToUse = smtpPassword || savedPassword;
-    if (!passwordToUse) {
-      setMessage({ type: 'error', text: 'Ingresa la contraseña SMTP para enviar el email de prueba' });
       return;
     }
 
@@ -112,30 +120,50 @@ export function NotificationSettings() {
     setMessage(null);
 
     try {
-      const resp = await fetch(`${API_URL}/api/notifications/test`, {
-        method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email_to: settings.email_to,
-          smtp_host: settings.smtp_host,
-          smtp_port: settings.smtp_port,
-          smtp_user: settings.smtp_user,
-          smtp_password: passwordToUse
-        }),
-      });
+      let resp;
+      if (smtpPassword) {
+        console.log('Using new smtpPassword - calling /test');
+        resp = await fetch(`${API_URL}/api/notifications/test`, {
+          method: 'POST',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email_to: settings.email_to,
+            smtp_host: settings.smtp_host,
+            smtp_port: settings.smtp_port,
+            smtp_user: settings.smtp_user,
+            smtp_password: smtpPassword
+          }),
+        });
+      } else {
+        console.log('No smtpPassword - calling /test-saved');
+        resp = await fetch(`${API_URL}/api/notifications/test-saved`, {
+          method: 'POST',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        });
+      }
+      
       const data = await resp.json();
+      console.log('test response:', data);
       
       if (data.success) {
-        setMessage({ type: 'success', text: 'Email de prueba enviado' });
+        setMessage({ type: 'success', text: '✅ Email de prueba enviado correctamente' });
       } else {
-        setMessage({ type: 'error', text: data.error || 'Error enviando' });
+        setMessage({ type: 'error', text: '❌ ' + (data.error || 'Error enviando') });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error de conexión' });
+      console.error('Error:', error);
+      setMessage({ type: 'error', text: '❌ Error de conexión' });
     } finally {
       setTesting(false);
     }
   };
+
+  useEffect(() => {
+    if (message) {
+      const timer = setTimeout(() => setMessage(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [message]);
 
   if (loading) {
     return <div className="p-4 text-center">Cargando...</div>;

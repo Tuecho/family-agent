@@ -119,6 +119,13 @@ La aplicación estará disponible en:
 
 ## Changelog
 
+### v1.0.6 (Marzo 2026)
+- **Fix: Error al actualizar perfil**: Corregido problema que impedía a usuarios normales actualizar su perfil
+- **Lista de usuarios para compartir**: Al compartir datos, ahora se muestra una lista desplegable con los usuarios disponibles
+- **Compartición de restaurantes y notas**: Restaurantes favoritos y tableros de notas ahora se comparten correctamente entre usuarios
+- **Backup completo**: El backup (JSON y .db) ahora incluye todas las tablas: contactos, recetas, restaurantes, galeria, planificador de comidas, etc.
+- **UI móvil mejorada**: Planificación de comidas optimizada para dispositivos móviles con vista de tarjetas por día
+
 ### v2.0.0 (Marzo 2026)
 
 #### Nuevas Funcionalidades
