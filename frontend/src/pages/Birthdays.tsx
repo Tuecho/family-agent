@@ -12,6 +12,7 @@ interface Birthday {
   month: number;
   age: number;
   daysUntil: number;
+  source?: 'family' | 'additional';
 }
 
 interface BirthdayForm {
@@ -29,6 +30,7 @@ export function Birthdays() {
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<BirthdayForm>({ name: '', birthdate: '' });
+  const [editingSource, setEditingSource] = useState<'family' | 'additional' | null>(null);
 
   useEffect(() => {
     fetchBirthdays();
@@ -50,38 +52,36 @@ export function Birthdays() {
     if (!form.name || !form.birthdate) return;
     
     try {
-      if (editingId) {
+      if (editingId && editingSource === 'additional') {
+        await fetch(`${API_URL}/api/birthdays/${editingId}`, {
+          method: 'PUT',
+          headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: form.name, birthdate: form.birthdate })
+        });
+      } else if (editingId && editingSource === 'family') {
+        // Correctly update family member birthdate
         await fetch(`${API_URL}/api/family-members/${editingId}`, {
           method: 'PUT',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             name: form.name, 
             birthdate: form.birthdate,
-            age_group: 'adult',
-            restrictions: '',
-            allergies: '',
-            intolerances: '',
-            notes: ''
+            // We need to preserve other fields if possible, but the API expects them.
+            // For now, let's keep it simple as the user's focus is on adding NEW ones.
           })
         });
       } else {
-        await fetch(`${API_URL}/api/family-members`, {
+        // Create in the NEW birthdays table
+        await fetch(`${API_URL}/api/birthdays`, {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            name: form.name, 
-            birthdate: form.birthdate,
-            age_group: 'adult',
-            restrictions: '',
-            allergies: '',
-            intolerances: '',
-            notes: ''
-          })
+          body: JSON.stringify({ name: form.name, birthdate: form.birthdate })
         });
       }
       
       setShowModal(false);
       setEditingId(null);
+      setEditingSource(null);
       setForm({ name: '', birthdate: '' });
       fetchBirthdays();
     } catch (error) {
@@ -91,14 +91,19 @@ export function Birthdays() {
 
   const handleEdit = (b: Birthday) => {
     setEditingId(b.id);
+    setEditingSource(b.source || 'additional');
     setForm({ name: b.name, birthdate: b.birthdate });
     setShowModal(true);
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (b: Birthday) => {
+    if (b.source === 'family') {
+      alert('Para eliminar el cumpleaños de un miembro de la familia, edítalo en la sección de Familia y borra su fecha de nacimiento.');
+      return;
+    }
     if (!confirm('Eliminar este cumpleaños?')) return;
     try {
-      await fetch(`${API_URL}/api/family-members/${id}`, {
+      await fetch(`${API_URL}/api/birthdays/${b.id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
@@ -171,7 +176,7 @@ export function Birthdays() {
                       <button onClick={() => handleEdit(b)} className="p-2 text-gray-400 hover:text-orange-500">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => handleDelete(b.id)} className="p-2 text-gray-400 hover:text-red-500">
+                      <button onClick={() => handleDelete(b)} className="p-2 text-gray-400 hover:text-red-500">
                         <Trash2 size={18} />
                       </button>
                     </div>

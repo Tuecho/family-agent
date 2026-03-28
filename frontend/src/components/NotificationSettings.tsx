@@ -12,6 +12,11 @@ interface NotificationSettings {
   smtp_user: string;
   notify_time: string;
   notify_timezone: string;
+  notify_events: number;
+  notify_tasks: number;
+  notify_budgets: number;
+  notify_meals: number;
+  notify_birthdays: number;
 }
 
 const TIMEZONES = [
@@ -36,7 +41,12 @@ export function NotificationSettings() {
     smtp_port: 587,
     smtp_user: '',
     notify_time: '22:00',
-    notify_timezone: 'Europe/Madrid'
+    notify_timezone: 'Europe/Madrid',
+    notify_events: 1,
+    notify_tasks: 1,
+    notify_budgets: 1,
+    notify_meals: 1,
+    notify_birthdays: 1
   });
   const [smtpPassword, setSmtpPassword] = useState('');
   const [savedPassword, setSavedPassword] = useState('');
@@ -62,7 +72,12 @@ export function NotificationSettings() {
         smtp_port: data.smtp_port || 587,
         smtp_user: data.smtp_user || '',
         notify_time: data.notify_time || '22:00',
-        notify_timezone: data.notify_timezone || 'Europe/Madrid'
+        notify_timezone: data.notify_timezone || 'Europe/Madrid',
+        notify_events: data.notify_events ?? 1,
+        notify_tasks: data.notify_tasks ?? 1,
+        notify_budgets: data.notify_budgets ?? 1,
+        notify_meals: data.notify_meals ?? 1,
+        notify_birthdays: data.notify_birthdays ?? 1
       });
       const hasPassword = (data.has_smtp_password === true || data.has_smtp_password === 1) || (data.smtp_user && data.email_to);
       console.log('hasPassword calculated:', hasPassword, 'data.smtp_user:', !!data.smtp_user, 'data.email_to:', !!data.email_to);
@@ -265,6 +280,12 @@ export function NotificationSettings() {
                         onChange={(e) => setSettings({ ...settings, notify_time: e.target.value })}
                         className="w-full pl-10 pr-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                       />
+                      {settings.notify_time && (
+                        <div className="mt-1 text-xs font-medium text-primary flex items-center gap-1">
+                          <Check size={12} />
+                          {parseInt(settings.notify_time.split(':')[0]) < 12 ? 'Mañana (AM)' : 'Tarde/Noche (PM)'}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -290,6 +311,60 @@ export function NotificationSettings() {
                 <p className="text-xs text-gray-500 mt-2">
                   Te envía un email a las {settings.notify_time} ({settings.notify_timezone}) con los eventos del día siguiente
                 </p>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h3 className="font-medium mb-3 flex items-center gap-2">
+                  <Bell size={18} />
+                  ¿Qué quieres recibir en el email?
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notify_events === 1}
+                      onChange={(e) => setSettings({ ...settings, notify_events: e.target.checked ? 1 : 0 })}
+                      className="w-4 h-4 rounded border-gray-300 text-primary"
+                    />
+                    <span className="text-sm">Eventos de agenda</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notify_tasks === 1}
+                      onChange={(e) => setSettings({ ...settings, notify_tasks: e.target.checked ? 1 : 0 })}
+                      className="w-4 h-4 rounded border-gray-300 text-primary"
+                    />
+                    <span className="text-sm">Tareas pendientes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notify_budgets === 1}
+                      onChange={(e) => setSettings({ ...settings, notify_budgets: e.target.checked ? 1 : 0 })}
+                      className="w-4 h-4 rounded border-gray-300 text-primary"
+                    />
+                    <span className="text-sm">Presupuestos</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notify_meals === 1}
+                      onChange={(e) => setSettings({ ...settings, notify_meals: e.target.checked ? 1 : 0 })}
+                      className="w-4 h-4 rounded border-gray-300 text-primary"
+                    />
+                    <span className="text-sm">Planes de comida</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.notify_birthdays === 1}
+                      onChange={(e) => setSettings({ ...settings, notify_birthdays: e.target.checked ? 1 : 0 })}
+                      className="w-4 h-4 rounded border-gray-300 text-primary"
+                    />
+                    <span className="text-sm">Cumpleaños</span>
+                  </label>
+                </div>
               </div>
 
               <div className="bg-blue-50 rounded-lg p-4">

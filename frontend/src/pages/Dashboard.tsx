@@ -517,6 +517,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [pendingTasks, setPendingTasks] = useState<any[]>([]);
   const [tasksLoading, setTasksLoading] = useState(false);
+  const [todayPlans, setTodayPlans] = useState<any[]>([]);
   const [tomorrowPlans, setTomorrowPlans] = useState<any[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
   const [monthBirthdays, setMonthBirthdays] = useState<any[]>([]);
@@ -562,9 +563,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     fetch(`${API_URL}/api/tasks`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => {
+        const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
         const sorted = (Array.isArray(data) ? data : [])
-          .filter((t: any) => !t.completed && !t.shopping_list_id)
+          .filter((t: any) => !t.completed && (!t.shopping_list_id || t.shopping_list_id === 0) && t.is_family_task !== 1)
           .sort((a: any, b: any) => {
+            const priorityA = priorityOrder[a.priority] ?? 2;
+            const priorityB = priorityOrder[b.priority] ?? 2;
+            if (priorityA !== priorityB) return priorityA - priorityB;
             if (!a.due_date && !b.due_date) return 0;
             if (!a.due_date) return 1;
             if (!b.due_date) return -1;
@@ -577,9 +582,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       .catch(() => setTasksLoading(false));
     
     setPlansLoading(true);
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
+    
+    fetch(`${API_URL}/api/events?from=${todayStr}&to=${todayStr}`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        setTodayPlans(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {});
     
     fetch(`${API_URL}/api/events?from=${tomorrowStr}&to=${tomorrowStr}`, { headers: getAuthHeaders() })
       .then(res => res.json())
@@ -728,6 +742,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       )}
 
       <div className="mb-4 sm:mb-6">
+        <div className="text-center py-3 sm:py-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-xl border border-amber-200 mb-4">
+          <p className="text-sm sm:text-base text-gray-700 italic px-4">
+            "{dailyQuote}"
+          </p>
+        </div>
         <div className="text-center py-4 sm:py-6 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-xl sm:rounded-2xl">
           <div className="inline-flex items-center gap-2 sm:gap-3">
             <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
@@ -783,41 +802,40 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <ListChecks size={20} className="text-orange-500" />
-            Tareas Pendientes
+            <Calendar size={20} className="text-green-500" />
+            Planes para hoy
           </h3>
-          {tasksLoading ? (
+          {plansLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="animate-spin text-gray-400" size={24} />
             </div>
-          ) : pendingTasks.length === 0 ? (
+          ) : todayPlans.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">✅</span>
-              <p className="text-gray-500 text-sm">No hay tareas pendientes</p>
+              <span className="text-4xl mb-2 block">📅</span>
+              <p className="text-gray-500 text-sm">No hay planes para hoy</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
-              {pendingTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500' : task.priority === 'normal' ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+              {todayPlans.map((plan) => (
+                <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                  <div className={`w-2 h-2 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">{task.title}</p>
-                    {task.due_date && (
-                      <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
-                        <Calendar size={12} />
-                        {new Date(task.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                    <p className="font-medium text-sm truncate">{plan.title}</p>
+                    {plan.start_time && (
+                      <p className="text-xs text-gray-400">
+                        {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
                       </p>
                     )}
                   </div>
-                  {task.assignee_name && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{task.assignee_name}</span>
+                  {plan.location && (
+                    <span className="text-xs text-gray-400 truncate max-w-[100px]">{plan.location}</span>
                   )}
                 </div>
               ))}
             </div>
           )}
-          {pendingTasks.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
+          {todayPlans.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 text-center">{todayPlans.length} plan{ todayPlans.length !== 1 ? 'es' : ''} para hoy</p>
           )}
         </div>
         
@@ -864,6 +882,46 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
+            <ListChecks size={20} className="text-orange-500" />
+            Tareas Pendientes
+          </h3>
+          {tasksLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin text-gray-400" size={24} />
+            </div>
+          ) : pendingTasks.length === 0 ? (
+            <div className="text-center py-8">
+              <span className="text-4xl mb-2 block">✅</span>
+              <p className="text-gray-500 text-sm">No hay tareas pendientes</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {pendingTasks.map((task) => (
+                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
+                  <div className={`w-2 h-2 rounded-full ${task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500' : task.priority === 'normal' ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{task.title}</p>
+                    {task.due_date && (
+                      <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                        <Calendar size={12} />
+                        {new Date(task.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                      </p>
+                    )}
+                  </div>
+                  {task.assignee_name && (
+                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{task.assignee_name}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {pendingTasks.length > 0 && (
+            <p className="text-xs text-gray-400 mt-2 text-center">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
+          )}
+        </div>
+        
+        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
             <Cake size={20} className="text-pink-500" />
             Cumpleaños del mes
           </h3>
@@ -892,16 +950,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               ))}
             </div>
           )}
-        </div>
-        
-        <div className="bg-gray-50 rounded-xl p-4 sm:p-6 border border-gray-200">
-          <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Heart size={20} />
-            Frase del día
-          </h3>
-          <div className="flex flex-col items-center justify-center h-full py-4">
-            <p className="text-lg sm:text-xl font-medium text-center italic">"{dailyQuote}"</p>
-          </div>
         </div>
       </div>
 

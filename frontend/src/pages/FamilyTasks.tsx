@@ -28,6 +28,7 @@ export function FamilyTasks() {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
   
   const [taskForm, setTaskForm] = useState({
@@ -73,7 +74,22 @@ export function FamilyTasks() {
           names[share.owner_id] = share.owner_username;
         });
       }
+      
+      const membersRes = await fetch(`${API_URL}/api/family-members`, { headers });
+      let members: any[] = [];
+      if (membersRes.ok) {
+        members = await membersRes.json();
+        if (Array.isArray(members)) {
+          members.forEach((member: any) => {
+            if (member.id) {
+              names[member.id] = member.name;
+            }
+          });
+        }
+      }
+      
       setSharedUsers(users);
+      setFamilyMembers(members);
       setUserNames(names);
     } catch (error) {
       console.error('Error fetching shared users:', error);
@@ -538,7 +554,7 @@ export function FamilyTasks() {
                   </select>
                 </div>
               </div>
-              {sharedUsers.length > 0 && (
+              {(sharedUsers.length > 0 || familyMembers.length > 0) && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Asignar a</label>
                   <select
@@ -547,8 +563,11 @@ export function FamilyTasks() {
                     className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="">Sin asignar</option>
+                    {familyMembers.map((member) => (
+                      <option key={member.id} value={member.id}>👤 {member.name}</option>
+                    ))}
                     {sharedUsers.map((user) => (
-                      <option key={user.id} value={user.id}>{user.username}</option>
+                      <option key={user.id} value={user.id}>🔗 {user.username}</option>
                     ))}
                   </select>
                 </div>

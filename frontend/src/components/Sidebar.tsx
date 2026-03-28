@@ -21,7 +21,6 @@ interface SidebarProps {
 export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }: SidebarProps) {
   const [profile, setProfile] = useState<Profile>({ name: '', avatar: null, family_name: 'Mi Familia' });
   const [isHovered, setIsHovered] = useState(false);
-  const [isPremiumOpen, setIsPremiumOpen] = useState(false);
 
   useEffect(() => {
     fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() })
@@ -30,12 +29,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
       .catch(console.error);
   }, []);
 
-  useEffect(() => {
-    const premiumPages = ['gallery', 'chatbot', 'sales', 'gifts'];
-    if (premiumPages.includes(activePage)) {
-      setIsPremiumOpen(true);
-    }
-  }, [activePage]);
+  // Removed premium pages effect as tabs are now always visible
 
   const isExpanded = isMobile || isHovered;
 
@@ -234,49 +228,55 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
                 activePage === 'contacts'
                   ? 'bg-amber-100 text-amber-700'
                   : 'text-gray-600 hover:bg-gray-100'
-              } ${isExpanded ? 'px-3 py-2' : 'p-2.5 justify-center'}`}
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
               title={isExpanded ? undefined : 'Contactos'}
             >
               <Users size={18} />
               {isExpanded && <span className="text-sm">Contactos</span>}
             </button>
           </li>
-          {isPremiumOpen && isExpanded && (
-            <li className="ml-2 space-y-1">
-              <button
-                onClick={() => onNavigate('gallery')}
-                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                  activePage === 'gallery'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                } px-3 py-2`}
-                title={isExpanded ? undefined : 'Galería'}
-              >
-                <Image size={16} />
-                <span className="text-sm">Galería</span>
-              </button>
-              <button
-                onClick={() => onNavigate('chatbot')}
-                className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
-                  activePage === 'chatbot'
-                    ? 'bg-amber-100 text-amber-700'
-                    : 'text-gray-600 hover:bg-gray-100'
-                } px-3 py-2`}
-                title={isExpanded ? undefined : 'Chat IA'}
-              >
-                <Bot size={16} />
-                <span className="text-sm">Chat IA</span>
-              </button>
-              <button
-                onClick={() => onNavigate('sales')}
-                className="w-full flex items-center gap-3 rounded-lg transition-colors text-gray-600 hover:bg-gray-100 px-3 py-2"
-                title={isExpanded ? undefined : 'Ventas'}
-              >
-                <DollarSign size={16} />
-                <span className="text-sm">Ventas</span>
-              </button>
-            </li>
-          )}
+          <li key="gallery">
+            <button
+              onClick={() => onNavigate('gallery')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'gallery'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Galería'}
+            >
+              <Image size={18} />
+              {isExpanded && <span className="text-sm">Galería</span>}
+            </button>
+          </li>
+          <li key="chatbot">
+            <button
+              onClick={() => onNavigate('chatbot')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'chatbot'
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Chat IA'}
+            >
+              <Bot size={18} />
+              {isExpanded && <span className="text-sm">Chat IA</span>}
+            </button>
+          </li>
+          <li key="sales">
+            <button
+              onClick={() => onNavigate('sales')}
+              className={`w-full flex items-center gap-3 rounded-lg transition-colors ${
+                activePage === 'sales'
+                  ? 'bg-green-100 text-green-700'
+                  : 'text-gray-600 hover:bg-gray-100'
+              } ${isExpanded ? 'px-3 py-2.5' : 'p-2.5 justify-center'}`}
+              title={isExpanded ? undefined : 'Ventas'}
+            >
+              <DollarSign size={18} />
+              {isExpanded && <span className="text-sm">Ventas</span>}
+            </button>
+          </li>
           {isAdmin && (
             <li>
               <button

@@ -1,7 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import initSqlJs from 'sql.js';
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import fs, { readFileSync, writeFileSync, existsSync } from 'fs';
+import path from 'path';
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 import pkg from 'node-cron';
@@ -118,10 +119,21 @@ async function initDb() {
       notify_time TEXT DEFAULT '22:00',
       notify_timezone TEXT DEFAULT 'Europe/Madrid',
       notify_day_before INTEGER DEFAULT 0,
+      notify_events INTEGER DEFAULT 1,
+      notify_tasks INTEGER DEFAULT 1,
+      notify_budgets INTEGER DEFAULT 1,
+      notify_meals INTEGER DEFAULT 1,
+      notify_birthdays INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+  
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_events INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_tasks INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_budgets INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_meals INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_birthdays INTEGER DEFAULT 1`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS family_events (
@@ -508,6 +520,16 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
     )
   `);
   try { db.run(`ALTER TABLE family_gifts ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS birthdays (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      birthdate TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   saveDb();
 }
@@ -2007,16 +2029,19 @@ app.get('/api/export', (req, res) => {
       { name: 'expense_concepts', query: 'SELECT * FROM expense_concepts WHERE owner_id = ? OR owner_id = 0' },
       { name: 'family_tasks', query: 'SELECT * FROM family_tasks WHERE owner_id = ?' },
       { name: 'family_members', query: 'SELECT * FROM family_members WHERE owner_id = ?' },
-      { name: 'birthdays', query: 'SELECT id, name, birthdate FROM family_members WHERE owner_id = ? AND birthdate IS NOT NULL AND birthdate != ""' },
+      { name: 'birthdays', query: 'SELECT * FROM birthdays WHERE owner_id = ?' },
       { name: 'family_notes', query: 'SELECT * FROM family_notes WHERE owner_id = ? ORDER BY updated_at DESC' },
       { name: 'note_boards', query: 'SELECT * FROM note_boards WHERE owner_id = ?' },
       { name: 'shopping_lists', query: 'SELECT * FROM shopping_lists WHERE owner_id = ?' },
       { name: 'family_contacts', query: 'SELECT * FROM family_contacts WHERE owner_id = ?' },
+      { name: 'family_gifts', query: 'SELECT * FROM family_gifts WHERE owner_id = ?' },
+      { name: 'books', query: 'SELECT * FROM books WHERE owner_id = ?' },
+      { name: 'movies', query: 'SELECT * FROM movies WHERE owner_id = ?' },
       { name: 'favorite_restaurants', query: 'SELECT * FROM favorite_restaurants WHERE owner_id = ?' },
       { name: 'recipes', query: 'SELECT * FROM recipes WHERE owner_id = ?' },
       { name: 'meal_plans', query: 'SELECT * FROM meal_plans WHERE owner_id = ?' },
       { name: 'family_gallery', query: 'SELECT * FROM family_gallery WHERE owner_id = ?' },
-      { name: 'invitations', query: 'SELECT * FROM invitations WHERE from_user_id = ? OR to_user_id = ?' },
+      { name: 'invitations', query: 'SELECT * FROM invitations WHERE from_user_id = ? OR to_username = (SELECT username FROM auth_user WHERE id = ?)' },
       { name: 'user_shares', query: 'SELECT * FROM user_shares WHERE owner_id = ? OR shared_with_id = ?' }
     ];
     
@@ -2067,8 +2092,9 @@ app.post('/api/import', (req, res) => {
       }
     }
     
-    if (data.events && Array.isArray(data.events)) {
-      for (const e of data.events) {
+    const events = data.family_events || data.events;
+    if (events && Array.isArray(events)) {
+      for (const e of events) {
         try {
           const stmt = db.prepare('INSERT INTO family_events (owner_id, title, date, type, description, recurrence, days_of_week) VALUES (?, ?, ?, ?, ?, ?, ?)');
           stmt.run([userId, e.title, e.date, e.type || "family", e.description || null, e.recurrence || null, e.days_of_week || null]);
@@ -2077,11 +2103,22 @@ app.post('/api/import', (req, res) => {
       }
     }
     
-    if (data.tasks && Array.isArray(data.tasks)) {
-      for (const t of data.tasks) {
+    const tasks = data.family_tasks || data.tasks;
+    if (tasks && Array.isArray(tasks)) {
+      for (const t of tasks) {
         try {
           const stmt = db.prepare('INSERT INTO family_tasks (owner_id, title, description, completed, due_date, priority, is_family_task, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
           stmt.run([userId, t.title, t.description || null, t.completed || 0, t.due_date || null, t.priority || 'normal', t.is_family_task || 0, t.created_at || new Date().toISOString()]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+
+    if (data.birthdays && Array.isArray(data.birthdays)) {
+      for (const b of data.birthdays) {
+        try {
+          const stmt = db.prepare('INSERT INTO birthdays (owner_id, name, birthdate) VALUES (?, ?, ?)');
+          stmt.run([userId, b.name, b.birthdate]);
           stmt.free();
         } catch (e) {}
       }
@@ -2090,8 +2127,38 @@ app.post('/api/import', (req, res) => {
     if (data.family_members && Array.isArray(data.family_members)) {
       for (const m of data.family_members) {
         try {
-          const stmt = db.prepare('INSERT INTO family_members (owner_id, name, relationship, birthdate, avatar, notes) VALUES (?, ?, ?, ?, ?, ?)');
-          stmt.run([userId, m.name, m.relationship || null, m.birthdate || null, m.avatar || null, m.notes || null]);
+          const stmt = db.prepare('INSERT INTO family_members (owner_id, name, age_group, restrictions, allergies, intolerances, notes, birthdate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, m.name, m.age_group || 'adult', m.restrictions || '', m.allergies || '', m.intolerances || '', m.notes || '', m.birthdate || '']);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+
+    if (data.family_gifts && Array.isArray(data.family_gifts)) {
+      for (const g of data.family_gifts) {
+        try {
+          const stmt = db.prepare('INSERT INTO family_gifts (owner_id, person_name, gift_name, occasion, date, notes, price, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, g.person_name, g.gift_name, g.occasion || null, g.date || null, g.notes || null, g.price || null, g.status || 'idea']);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+
+    if (data.books && Array.isArray(data.books)) {
+      for (const b of data.books) {
+        try {
+          const stmt = db.prepare('INSERT INTO books (owner_id, title, author, genre, status, rating, notes, cover_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, b.title, b.author || null, b.genre || null, b.status || 'pending', b.rating || null, b.notes || null, b.cover_url || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+
+    if (data.movies && Array.isArray(data.movies)) {
+      for (const m of data.movies) {
+        try {
+          const stmt = db.prepare('INSERT INTO movies (owner_id, title, director, genre, year, status, rating, notes, poster_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, m.title, m.director || null, m.genre || null, m.year || null, m.status || 'pending', m.rating || null, m.notes || null, m.poster_url || null]);
           stmt.free();
         } catch (e) {}
       }
@@ -2100,8 +2167,8 @@ app.post('/api/import', (req, res) => {
     if (data.family_notes && Array.isArray(data.family_notes)) {
       for (const n of data.family_notes) {
         try {
-          const stmt = db.prepare('INSERT INTO family_notes (owner_id, title, content, board_id, color, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-          stmt.run([userId, n.title, n.content || null, n.board_id || null, n.color || null, n.created_at || new Date().toISOString(), n.updated_at || new Date().toISOString()]);
+          const stmt = db.prepare('INSERT INTO family_notes (owner_id, title, content, board_id, category, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, n.title, n.content || null, n.board_id || null, n.category || 'general', n.created_at || new Date().toISOString(), n.updated_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -2120,8 +2187,8 @@ app.post('/api/import', (req, res) => {
     if (data.shopping_lists && Array.isArray(data.shopping_lists)) {
       for (const s of data.shopping_lists) {
         try {
-          const stmt = db.prepare('INSERT INTO shopping_lists (owner_id, name, items, created_at, updated_at) VALUES (?, ?, ?, ?, ?)');
-          stmt.run([userId, s.name, s.items || '[]', s.created_at || new Date().toISOString(), s.updated_at || new Date().toISOString()]);
+          const stmt = db.prepare('INSERT INTO shopping_lists (owner_id, name, color, created_at) VALUES (?, ?, ?, ?)');
+          stmt.run([userId, s.name, s.color || '#22c55e', s.created_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -2130,8 +2197,8 @@ app.post('/api/import', (req, res) => {
     if (data.family_contacts && Array.isArray(data.family_contacts)) {
       for (const c of data.family_contacts) {
         try {
-          const stmt = db.prepare('INSERT INTO family_contacts (owner_id, name, phone, email, address, notes, category) VALUES (?, ?, ?, ?, ?, ?, ?)');
-          stmt.run([userId, c.name, c.phone || null, c.email || null, c.address || null, c.notes || null, c.category || null]);
+          const stmt = db.prepare('INSERT INTO family_contacts (owner_id, name, relationship, phone, email, address, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, c.name, c.relationship || null, c.phone || null, c.email || null, c.address || null, c.notes || null]);
           stmt.free();
         } catch (e) {}
       }
@@ -2140,8 +2207,8 @@ app.post('/api/import', (req, res) => {
     if (data.favorite_restaurants && Array.isArray(data.favorite_restaurants)) {
       for (const r of data.favorite_restaurants) {
         try {
-          const stmt = db.prepare('INSERT INTO favorite_restaurants (owner_id, name, address, phone, cuisine_type, notes, rating, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-          stmt.run([userId, r.name, r.address || null, r.phone || null, r.cuisine_type || null, r.notes || null, r.rating || 3, r.created_at || new Date().toISOString()]);
+          const stmt = db.prepare('INSERT INTO favorite_restaurants (id, owner_id, name, address, phone, cuisine_type, rating, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([r.id || crypto.randomUUID(), userId, r.name, r.address || null, r.phone || null, r.cuisine_type || null, r.rating || 3, r.notes || null, r.created_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -2150,8 +2217,8 @@ app.post('/api/import', (req, res) => {
     if (data.recipes && Array.isArray(data.recipes)) {
       for (const r of data.recipes) {
         try {
-          const stmt = db.prepare('INSERT INTO recipes (owner_id, name, ingredients, instructions, prep_time, cook_time, servings, category, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-          stmt.run([userId, r.name, r.ingredients || null, r.instructions || null, r.prep_time || null, r.cook_time || null, r.servings || null, r.category || null, r.notes || null, r.created_at || new Date().toISOString()]);
+          const stmt = db.prepare('INSERT INTO recipes (owner_id, name, description, ingredients, instructions, prep_time, cook_time, servings, category, restrictions, contains, is_favorite, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, r.name, r.description || '', r.ingredients || '', r.instructions || '', r.prep_time || null, r.cook_time || null, r.servings || 4, r.category || 'main', r.restrictions || '', r.contains || '', r.is_favorite || 0, r.created_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -2160,8 +2227,8 @@ app.post('/api/import', (req, res) => {
     if (data.meal_plans && Array.isArray(data.meal_plans)) {
       for (const m of data.meal_plans) {
         try {
-          const stmt = db.prepare('INSERT INTO meal_plans (owner_id, date, meal_type, recipe_id, recipe_name, notes) VALUES (?, ?, ?, ?, ?, ?)');
-          stmt.run([userId, m.date, m.meal_type || null, m.recipe_id || null, m.recipe_name || null, m.notes || null]);
+          const stmt = db.prepare('INSERT INTO meal_plans (owner_id, week_start, day_of_week, meal_type, recipe_id, recipe_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, m.week_start, m.day_of_week, m.meal_type || null, m.recipe_id || null, m.recipe_name || null, m.created_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -2170,8 +2237,8 @@ app.post('/api/import', (req, res) => {
     if (data.family_gallery && Array.isArray(data.family_gallery)) {
       for (const g of data.family_gallery) {
         try {
-          const stmt = db.prepare('INSERT INTO family_gallery (owner_id, title, image, description, created_at) VALUES (?, ?, ?, ?, ?)');
-          stmt.run([userId, g.title || null, g.image || null, g.description || null, g.created_at || new Date().toISOString()]);
+          const stmt = db.prepare('INSERT INTO family_gallery (owner_id, title, description, image_data, album, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, g.title || null, g.description || null, g.image_data || '', g.album || 'General', g.created_at || new Date().toISOString()]);
           stmt.free();
         } catch (e) {}
       }
@@ -2225,7 +2292,7 @@ app.post('/api/import/db', upload.single('file'), async (req, res) => {
   try {
     const backupDb = new (await initSqlJs()).Database(req.file.buffer);
     
-    const tables = ['transactions', 'budgets', 'family_events', 'family_tasks', 'family_notes', 'note_boards', 'family_members', 'shopping_lists', 'family_contacts', 'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery', 'auth_user', 'user_profile', 'notification_settings', 'expense_concepts', 'faqs', 'user_shares', 'invitations', 'suggestions', 'app_settings'];
+    const tables = ['transactions', 'budgets', 'family_events', 'family_tasks', 'family_notes', 'note_boards', 'family_members', 'shopping_lists', 'family_contacts', 'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery', 'auth_user', 'user_profile', 'notification_settings', 'expense_concepts', 'faqs', 'user_shares', 'invitations', 'suggestions', 'app_settings', 'family_gifts', 'books', 'movies', 'birthdays'];
     let importedCount = 0;
     
     for (const table of tables) {
@@ -2445,7 +2512,7 @@ app.get('/api/tasks', (req, res) => {
   const accessibleIds = getAccessibleUserIds(userId, 'share_tasks');
   const placeholders = accessibleIds.map(() => '?').join(',');
   
-  const stmt = db.prepare(`SELECT t.*, fm.name as assignee_name FROM family_tasks t LEFT JOIN family_members fm ON t.assigned_to_id = fm.id WHERE t.owner_id IN (${placeholders}) OR t.owner_id = ? OR t.assigned_to_id = ? ORDER BY t.completed ASC, t.created_at DESC`);
+  const stmt = db.prepare(`SELECT t.*, COALESCE(fm.name, au.username) as assignee_name FROM family_tasks t LEFT JOIN family_members fm ON t.assigned_to_id = fm.id LEFT JOIN auth_user au ON t.assigned_to_id = au.id WHERE t.owner_id IN (${placeholders}) OR t.owner_id = ? OR t.assigned_to_id = ? ORDER BY t.completed ASC, t.created_at DESC`);
   stmt.bind([...accessibleIds, userId, userId]);
   
   const tasks = [];
@@ -2946,7 +3013,7 @@ app.get('/api/family-members', (req, res) => {
   
   const accessibleIds = getAccessibleUserIds(userId, 'share_family_members');
   const placeholders = accessibleIds.map(() => '?').join(',');
-  const stmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${placeholders}) ORDER BY name`);
+  const stmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${placeholders}) AND (birthdate IS NULL OR birthdate = '') ORDER BY name`);
   stmt.bind(accessibleIds);
   const members = [];
   while (stmt.step()) members.push(stmt.getAsObject());
@@ -2987,20 +3054,77 @@ app.delete('/api/family-members/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/birthdays', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM birthdays WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const birthdays = [];
+  while (stmt.step()) birthdays.push(stmt.getAsObject());
+  stmt.free();
+  res.json(birthdays);
+});
+
+app.post('/api/birthdays', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { name, birthdate } = req.body;
+  if (!name || !birthdate) return res.status(400).json({ error: 'Nombre y fecha son obligatorios' });
+  
+  const stmt = db.prepare('INSERT INTO birthdays (owner_id, name, birthdate) VALUES (?, ?, ?)');
+  stmt.run([userId, name, birthdate]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.put('/api/birthdays/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { name, birthdate } = req.body;
+  
+  const stmt = db.prepare('UPDATE birthdays SET name = ?, birthdate = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, birthdate, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/birthdays/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  
+  db.run('DELETE FROM birthdays WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
 app.get('/api/family-members/birthdays', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const accessibleIds = getAccessibleUserIds(userId, 'share_family_members');
   const placeholders = accessibleIds.map(() => '?').join(',');
-  const stmt = db.prepare(`SELECT id, name, birthdate, owner_id FROM family_members WHERE owner_id IN (${placeholders}) AND birthdate IS NOT NULL AND birthdate != ""`);
+  
+  // Get birthdays from family_members
+  const stmt = db.prepare(`SELECT id, name, birthdate, owner_id, 'family' as source FROM family_members WHERE owner_id IN (${placeholders}) AND birthdate IS NOT NULL AND birthdate != ""`);
   stmt.bind(accessibleIds);
-  const members = [];
-  while (stmt.step()) members.push(stmt.getAsObject());
+  const combined = [];
+  while (stmt.step()) combined.push(stmt.getAsObject());
   stmt.free();
   
+  // Get birthdays from dedicated birthdays table (only for current user or shared if applicable)
+  // For now, let's just get the current user's additional birthdays
+  const stmt2 = db.prepare(`SELECT id, name, birthdate, owner_id, 'additional' as source FROM birthdays WHERE owner_id = ?`);
+  stmt2.bind([userId]);
+  while (stmt2.step()) combined.push(stmt2.getAsObject());
+  stmt2.free();
+  
   const today = new Date();
-  const birthdays = members
+  const birthdays = combined
     .filter(m => m.birthdate && m.birthdate.trim() !== '')
     .map(m => {
       const birthDate = new Date(m.birthdate);
@@ -3024,7 +3148,8 @@ app.get('/api/family-members/birthdays', (req, res) => {
         day: birthDate.getDate(),
         month: birthDate.getMonth() + 1,
         age: age,
-        daysUntil: daysUntil
+        daysUntil: daysUntil,
+        source: m.source
       };
     })
     .sort((a, b) => a.month - b.month || a.day - b.day);
@@ -3282,7 +3407,18 @@ app.post('/api/reset', (req, res) => {
     { name: 'family_contacts', ownerField: 'owner_id' },
     { name: 'family_gallery', ownerField: 'owner_id' },
     { name: 'user_shares', ownerField: null, customWhere: 'owner_id = ? OR shared_with_id = ?' },
-    { name: 'invitations', ownerField: null, customWhere: 'from_user_id = ?' }
+    { name: 'invitations', ownerField: null, customWhere: 'from_user_id = ?' },
+    { name: 'favorite_restaurants', ownerField: 'owner_id' },
+    { name: 'books', ownerField: 'owner_id' },
+    { name: 'movies', ownerField: 'owner_id' },
+    { name: 'family_gifts', ownerField: 'owner_id' },
+    { name: 'recipes', ownerField: 'owner_id' },
+    { name: 'meal_plans', ownerField: 'owner_id' },
+    { name: 'birthdays', ownerField: 'owner_id' },
+    { name: 'notification_settings', ownerField: 'owner_id' },
+    { name: 'suggestions', ownerField: 'owner_id' },
+    { name: 'contact_messages', ownerField: 'owner_id' },
+    { name: 'sales_contacts', ownerField: 'owner_id' }
   ];
   
   try {
@@ -4388,6 +4524,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   }
 
   const profileData = profile || { name: 'Usuario', family_name: 'Mi Familia' };
+  const familyName = profileData.family_name || 'Familia';
   const membersMap = members.reduce((acc, m) => { acc[m.id] = m.name; return acc; }, {});
   
   if (!events || !Array.isArray(events)) events = [];
@@ -4437,7 +4574,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
   const greetingHtml = `
     <div style="padding: 20px; background: #fff;">
-      <p style="font-size: 18px; color: #333; margin: 0;">¡Hola <strong>${familyName}</strong>! 👋</p>
+      <p style="font-size: 18px; color: #333; margin: 0;">¡Hola <strong>familia ${familyName}</strong>! 👋</p>
     </div>
   `;
 
@@ -4450,11 +4587,17 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   let htmlContent;
   let textContent;
 
-  const hasEvents = events.length > 0;
-  const hasBudgets = budgets && budgets.length > 0;
-  const hasTasks = tasks.length > 0;
-  const hasMealPlans = mealPlans && mealPlans.length > 0;
-  const hasBirthdays = birthdays && birthdays.length > 0;
+  const notifyEvents = settings?.notify_events !== 0;
+  const notifyTasks = settings?.notify_tasks !== 0;
+  const notifyBudgets = settings?.notify_budgets !== 0;
+  const notifyMeals = settings?.notify_meals !== 0;
+  const notifyBirthdays = settings?.notify_birthdays !== 0;
+
+  const hasEvents = notifyEvents && events.length > 0;
+  const hasBudgets = notifyBudgets && budgets && budgets.length > 0;
+  const hasTasks = notifyTasks && tasks.length > 0;
+  const hasMealPlans = notifyMeals && mealPlans && mealPlans.length > 0;
+  const hasBirthdays = notifyBirthdays && birthdays && birthdays.length > 0;
 
   let budgetsSection = '';
   let budgetsText = '';
@@ -4607,7 +4750,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     `;
   }
 
-  const familyName = profileData.family_name || 'Familia';
+  // Remove previous definition 
   
   const dateRangeStr = `${today.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${nextWeek.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
@@ -4641,7 +4784,6 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     }, {});
     
     let eventsHtml = `<p>Tienes <strong>${events.length} plan${events.length > 1 ? 'es' : ''}</strong> para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}):</p>`;
-    eventsHtml += '<div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0;">';
     
     Object.entries(eventsByDay).forEach(([day, dayEvents], dayIdx) => {
       eventsHtml += '<div style="padding: 12px 0; ' + (dayIdx > 0 ? 'border-top: 2px solid #e5e7eb;' : '') + '">';
@@ -4678,7 +4820,6 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${greetingHtml}
     ${quoteHtml}
     <div style="padding: 20px;">
-      <p style="color: #666; font-size: 14px; margin: 0 0 20px 0;">Tienes <strong>${events.length} plan${events.length > 1 ? 'es' : ''}</strong> para los próximos 7 días (${dateRangeStr}):</p>
       ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}
     </div>
     ${footerHtml}
@@ -4694,6 +4835,9 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     auth: {
       user: settings.smtp_user,
       pass: settings.smtp_password
+    },
+    tls: {
+      rejectUnauthorized: false
     }
   });
 
@@ -4751,6 +4895,8 @@ async function runDailyNotification() {
     const usersToNotify = [];
     const now = new Date();
     
+    console.log(`[Notification] Checking ${usersStmt.getAffectedRows} user(s) at ${now.toISOString()}`);
+    
     while (usersStmt.step()) {
       const settings = usersStmt.getAsObject();
       const tz = settings.notify_timezone || 'Europe/Madrid';
@@ -4767,6 +4913,8 @@ async function runDailyNotification() {
         const minute = parts.find(p => p.type === 'minute').value;
         const userLocalTime = `${hour}:${minute}`;
         
+        console.log(`[Notification] User ${settings.owner_id}: Local Time: ${userLocalTime}, Notify Time: ${settings.notify_time}`);
+        
         if (userLocalTime === settings.notify_time) {
           usersToNotify.push(settings.owner_id);
         }
@@ -4777,7 +4925,7 @@ async function runDailyNotification() {
     usersStmt.free();
 
     for (const userId of usersToNotify) {
-      console.log(`[Notification] Sending scheduled notification to user ${userId} (User Time match: ${now.toISOString()})`);
+      console.log(`[Notification] MATCH! Sending scheduled notification to user ${userId}`);
       await sendUserNotification(userId);
     }
   } catch (error) {
@@ -4830,17 +4978,14 @@ async function sendUserNotification(userId) {
     const year = today.getFullYear();
     const monthStr = String(month).padStart(2, '0');
 
-    const budgetConcepts = ['gasolina', 'comida', 'gastos pm', 'gastos m+', 'miguel'];
-    const conceptPlaceholders = budgetConcepts.map(() => 'LOWER(?)').join(',');
-    
     const budgetsStmt = db.prepare(`
       SELECT b.*, COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.date LIKE ? THEN t.amount ELSE 0 END), 0) as spent
       FROM budgets b
       LEFT JOIN transactions t ON LOWER(t.concept) = LOWER(b.concept) AND t.owner_id = b.owner_id
-      WHERE b.owner_id = ? AND b.month = ? AND b.year = ? AND LOWER(b.concept) IN (${conceptPlaceholders})
+      WHERE b.owner_id = ? AND b.month = ? AND b.year = ?
       GROUP BY b.id
     `);
-    budgetsStmt.bind([`${year}-${monthStr}%`, userId, month, year, ...budgetConcepts]);
+    budgetsStmt.bind([`${year}-${monthStr}%`, userId, month, year]);
     const budgets = [];
     while (budgetsStmt.step()) {
       budgets.push(budgetsStmt.getAsObject());
@@ -4853,7 +4998,7 @@ async function sendUserNotification(userId) {
     if (profileStmt.step()) profile = profileStmt.getAsObject();
     profileStmt.free();
 
-    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
+    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) AND is_family_task = 0 ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
     tasksStmt.bind([userId]);
     const tasks = [];
     while (tasksStmt.step()) {
@@ -4880,7 +5025,18 @@ async function sendUserNotification(userId) {
     }
     membersStmt.free();
 
-    const birthdays = members
+    // Fetch additional birthdays
+    const addBirthdaysStmt = db.prepare(`SELECT id, name, birthdate, owner_id FROM birthdays WHERE owner_id = ?`);
+    addBirthdaysStmt.bind([userId]);
+    const additionalBirthdays = [];
+    while (addBirthdaysStmt.step()) {
+      additionalBirthdays.push(addBirthdaysStmt.getAsObject());
+    }
+    addBirthdaysStmt.free();
+
+    const allBirthdaySources = [...members, ...additionalBirthdays];
+
+    const birthdays = allBirthdaySources
       .filter(m => m.birthdate && m.birthdate.trim() !== '')
       .map(m => {
         const birthDate = new Date(m.birthdate);
@@ -5007,7 +5163,7 @@ app.post('/api/notifications/settings', (req, res) => {
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
   try {
-    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before } = req.body || {};
+    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays } = req.body || {};
 
     console.log('POST /api/notifications/settings - smtp_password received:', !!smtp_password, 'length:', smtp_password?.length);
 
@@ -5040,6 +5196,11 @@ app.post('/api/notifications/settings', (req, res) => {
           notify_time = ?,
           notify_timezone = ?,
           notify_day_before = ?,
+          notify_events = ?,
+          notify_tasks = ?,
+          notify_budgets = ?,
+          notify_meals = ?,
+          notify_birthdays = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
       `);
@@ -5053,13 +5214,18 @@ app.post('/api/notifications/settings', (req, res) => {
         notify_time || '22:00',
         timezone,
         notify_day_before ? 1 : 0,
+        notify_events ?? 1,
+        notify_tasks ?? 1,
+        notify_budgets ?? 1,
+        notify_meals ?? 1,
+        notify_birthdays ?? 1,
         authUserId
       ]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
         authUserId,
@@ -5071,7 +5237,12 @@ app.post('/api/notifications/settings', (req, res) => {
         passwordToSave,
         notify_time || '22:00',
         timezone,
-        notify_day_before ? 1 : 0
+        notify_day_before ? 1 : 0,
+        notify_events ?? 1,
+        notify_tasks ?? 1,
+        notify_budgets ?? 1,
+        notify_meals ?? 1,
+        notify_birthdays ?? 1
       ]);
       stmt.free();
     }
@@ -5120,16 +5291,22 @@ app.post('/api/notifications/test', async (req, res) => {
   ];
   const testProfile = { name: 'Usuario de prueba', family_name: 'Mi Familia' };
 
-  const result = await sendNotificationEmail(
-    { ...req.body, email_enabled: 1 },
-    testEvents,
-    testProfile
-  );
+  try {
+    const result = await sendNotificationEmail(
+      { ...req.body, email_enabled: 1 },
+      testEvents,
+      [], // budgets
+      testProfile
+    );
 
-  if (result.success) {
-    res.json({ success: true, message: 'Email de prueba enviado' });
-  } else {
-    res.status(500).json({ error: 'Error enviando email: ' + result.reason });
+    if (result.success) {
+      res.json({ success: true, message: 'Email de prueba enviado' });
+    } else {
+      res.status(500).json({ error: 'Error enviando email: ' + result.reason });
+    }
+  } catch (error) {
+    console.error('Test notification error:', error);
+    res.status(500).json({ error: 'Excepción al enviar email: ' + error.message });
   }
 });
 
@@ -5180,12 +5357,17 @@ app.post('/api/notifications/test-saved', async (req, res) => {
   ];
   const testProfile = { name: 'Usuario de prueba', family_name: 'Mi Familia' };
 
-  const result = await sendNotificationEmail(settings, testEvents, testProfile);
+  try {
+    const result = await sendNotificationEmail(settings, testEvents, [], testProfile);
 
-  if (result.success) {
-    res.json({ success: true, message: 'Email de prueba enviado' });
-  } else {
-    res.status(500).json({ error: 'Error enviando email: ' + result.reason });
+    if (result.success) {
+      res.json({ success: true, message: 'Email de prueba enviado' });
+    } else {
+      res.status(500).json({ error: 'Error enviando email: ' + result.reason });
+    }
+  } catch (error) {
+    console.error('Test-saved notification error:', error);
+    res.status(500).json({ error: 'Excepción al enviar email guardado: ' + error.message });
   }
 });
 
@@ -5248,6 +5430,53 @@ function scheduleNotification() {
     console.log(`[Notification] Dispatcher started (running every minute)`);
   } catch (e) {
     console.error('[Notification] Error starting dispatcher:', e);
+  }
+}
+
+let backupTask = null;
+
+function scheduleBackup() {
+  if (backupTask) {
+    backupTask.stop();
+  }
+  
+  try {
+    backupTask = cron.schedule('0 3 * * *', async () => {
+      console.log(`[Backup] Starting automatic backup at ${new Date().toISOString()}`);
+      try {
+        const backupDir = path.join(process.cwd(), 'backups');
+        if (!fs.existsSync(backupDir)) {
+          fs.mkdirSync(backupDir, { recursive: true });
+        }
+        
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const backupFile = path.join(backupDir, `family_agent_backup_${timestamp}.db`);
+        
+        fs.copyFileSync(dbPath, backupFile);
+        console.log(`[Backup] Backup created: ${backupFile}`);
+        
+        const files = fs.readdirSync(backupDir);
+        const dbFiles = files.filter(f => f.startsWith('family_agent_backup_') && f.endsWith('.db'));
+        dbFiles.sort().reverse();
+        
+        const maxBackups = 7;
+        if (dbFiles.length > maxBackups) {
+          const toDelete = dbFiles.slice(maxBackups);
+          for (const file of toDelete) {
+            const filePath = path.join(backupDir, file);
+            fs.unlinkSync(filePath);
+            console.log(`[Backup] Deleted old backup: ${file}`);
+          }
+        }
+        
+        console.log(`[Backup] Automatic backup completed successfully`);
+      } catch (err) {
+        console.error('[Backup] Error creating backup:', err);
+      }
+    });
+    console.log(`[Backup] Automatic backup scheduled for 3:00 AM daily`);
+  } catch (e) {
+    console.error('[Backup] Error scheduling backup:', e);
   }
 }
 
@@ -5371,6 +5600,7 @@ app.delete('/api/contacts/:id', (req, res) => {
 await initDb();
 
 scheduleNotification();
+scheduleBackup();
 
 app.get('/api/gallery/photos', (req, res) => {
   const userId = getCurrentUserId(req.headers);
@@ -5456,6 +5686,25 @@ app.get('/api/gallery/albums', (req, res) => {
   stmt.free();
 
   res.json(albums);
+});
+
+app.delete('/api/gallery/albums/:name', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const albumName = req.params.name;
+  if (!albumName || albumName === 'General') {
+    return res.status(400).json({ error: 'No se puede eliminar el álbum General' });
+  }
+
+  try {
+    db.run('UPDATE family_gallery SET album = ? WHERE owner_id = ? AND album = ?', ['General', userId, albumName]);
+    saveDb();
+    res.json({ success: true, message: 'Álbum eliminado correctamente' });
+  } catch (error) {
+    console.error('Error deleting album:', error);
+    res.status(500).json({ error: 'Error al eliminar el álbum' });
+  }
 });
 
 app.get('/api/books', (req, res) => {
@@ -5834,4 +6083,5 @@ app.delete('/api/gifts/:id', (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);
+  scheduleNotification();
 });

@@ -209,7 +209,7 @@ export function BooksMovies() {
             </div>
           </div>
           <button onClick={openNew} className="bg-white text-indigo-500 px-3 sm:px-4 py-2 rounded-lg font-medium hover:bg-indigo-50 flex items-center gap-2 text-sm sm:text-base w-full sm:w-auto justify-center">
-            <Plus size={18} /> <span className="sm:hidden">+</span><span className="hidden sm:inline">Añadir</span>
+            <Plus size={18} /> <span className="sm:hidden"></span><span className="hidden sm:inline">Añadir</span>
           </button>
         </div>
       </div>
