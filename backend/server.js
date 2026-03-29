@@ -1574,10 +1574,10 @@ app.get('/api/transactions/monthly', (req, res) => {
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   const results = [];
+  const now = new Date();
   
-  for (let i = numMonths - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setMonth(d.getMonth() - i);
+  for (let i = 0; i < numMonths; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const year = d.getFullYear();
     
@@ -4085,7 +4085,7 @@ app.post('/api/chat', async (req, res) => {
 
     response = generateFamilyResponse(message, chatData);
   } else {
-    response = 'Soy el asistente de Family Agent. Estoy configurado para ayudarte con la economía familiar.';
+    response = 'Soy el asistente de Family Agent. Estoy configurado para ayudarte con la gestión de asuntos familiares.';
   }
 
   conversationHistory.push({ role: 'assistant', content: response });
@@ -4548,7 +4548,6 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     "🌺 Hoy es un buen día para hacer sonreír a los tuyos.",
     "🎯 Donde está la familia, está la vida.",
     "✨ Las mejores memorias se crean en familia.",
-    "💖 Família és on comença l'amor i mai s'acaba.",
     "🌻 Un hogar feliz es el mejor legado.",
     "❤️‍🔥 El amor familiar es el combustible que nos impulsa.",
     "🏡 Familia es donde el corazón está.",
@@ -4574,7 +4573,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
   const greetingHtml = `
     <div style="padding: 20px; background: #fff;">
-      <p style="font-size: 18px; color: #333; margin: 0;">¡Hola <strong>familia ${familyName}</strong>! 👋</p>
+      <p style="font-size: 18px; color: #333; margin: 0;">¡Hola <strong> ${familyName}</strong>! 👋</p>
     </div>
   `;
 
@@ -4964,8 +4963,10 @@ async function sendUserNotification(userId) {
     nextWeek.setDate(nextWeek.getDate() + 7);
     const nextWeekStr = nextWeek.toISOString().split('T')[0];
 
-    const eventsStmt = db.prepare('SELECT * FROM family_events WHERE owner_id = ? AND ((date >= ? AND date <= ?) OR recurrence = ?) ORDER BY date ASC, start_time ASC');
-    eventsStmt.bind([userId, tomorrowStr, nextWeekStr, 'weekly']);
+    const accessibleEventIds = getAccessibleUserIds(userId, 'share_events');
+    const eventPlaceholders = accessibleEventIds.map(() => '?').join(',');
+    const eventsStmt = db.prepare(`SELECT * FROM family_events WHERE owner_id IN (${eventPlaceholders}) AND ((date >= ? AND date <= ?) OR recurrence = ?) ORDER BY date ASC, start_time ASC`);
+    eventsStmt.bind([...accessibleEventIds, tomorrowStr, nextWeekStr, 'weekly']);
     const events = [];
     while (eventsStmt.step()) {
       events.push(eventsStmt.getAsObject());
@@ -4998,7 +4999,7 @@ async function sendUserNotification(userId) {
     if (profileStmt.step()) profile = profileStmt.getAsObject();
     profileStmt.free();
 
-    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) AND is_family_task = 0 ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
+    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
     tasksStmt.bind([userId]);
     const tasks = [];
     while (tasksStmt.step()) {

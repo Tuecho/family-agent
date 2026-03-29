@@ -516,7 +516,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [weather, setWeather] = useState<{ city: string; temperature: number; description: string; isRainy: boolean; isSnowy: boolean } | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [pendingTasks, setPendingTasks] = useState<any[]>([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksLoading, setTasksLoading] = useState(true);
   const [todayPlans, setTodayPlans] = useState<any[]>([]);
   const [tomorrowPlans, setTomorrowPlans] = useState<any[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
@@ -524,12 +524,16 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [birthdaysLoading, setBirthdaysLoading] = useState(false);
   
   const quotes = [
+    "PM es nuestro bebito.",
+    "Pm, tú y yo.",
+    "La familia es el corazón de la vida.",
     "La familia es el corazón de la vida.",
     "Cada día es una nueva oportunidad para estar juntos.",
-    "El amor familiar es el mayores tesoros.",
-    "Las pequenas cosas de la vida son las mas importantes.",
+    "El amor familiar es el mayor tesoros.",
+    "Las pequeñas cosas de la vida son las mas importantes.",
     "La felicidad es estar en familia.",
     "Un hogar feliz es el mejor legado.",
+    "Si no puedes alabar cállate.",
     "El tiempo en familia es tiempo bien invertido.",
     "La familia es donde la vida comienza y el amor nunca termina.",
     "Familia significa nadie se queda atras o olvidado.",
@@ -559,27 +563,32 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     fetchProfile();
     fetchWeather();
     
-    setTasksLoading(true);
     fetch(`${API_URL}/api/tasks`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => {
+        const tareas = Array.isArray(data) ? data : [];
+        window.tasksDebug = tareas;
         const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
-        const sorted = (Array.isArray(data) ? data : [])
-          .filter((t: any) => !t.completed && (!t.shopping_list_id || t.shopping_list_id === 0) && t.is_family_task !== 1)
+        const pendientes = tareas
+          .filter((t: any) => t.completed !== 1 && !t.shopping_list_id)
           .sort((a: any, b: any) => {
-            const priorityA = priorityOrder[a.priority] ?? 2;
-            const priorityB = priorityOrder[b.priority] ?? 2;
-            if (priorityA !== priorityB) return priorityA - priorityB;
-            if (!a.due_date && !b.due_date) return 0;
+            const pa = priorityOrder[a.priority] ?? 2;
+            const pb = priorityOrder[b.priority] ?? 2;
+            if (pa !== pb) return pa - pb;
             if (!a.due_date) return 1;
             if (!b.due_date) return -1;
             return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
           })
           .slice(0, 5);
-        setPendingTasks(sorted);
-        setTasksLoading(false);
+        window.pendingTasksDebug = pendientes;
+        setPendingTasks(pendientes);
       })
-      .catch(() => setTasksLoading(false));
+      .finally(() => setTasksLoading(false));
+    
+    window.fetchTasksForDebug = () => {
+      console.log('Todas las tareas:', window.tasksDebug);
+      console.log('Tareas pendientes:', window.pendingTasksDebug);
+    };
     
     setPlansLoading(true);
     const today = new Date();
