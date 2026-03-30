@@ -2556,7 +2556,7 @@ app.put('/api/tasks/:id', (req, res) => {
   const { id } = req.params;
   const { title, description, completed, due_date, priority, shopping_list_id, assigned_to_id } = req.body;
   
-  const checkStmt = db.prepare('SELECT owner_id, is_family_task, assigned_to_id FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, is_family_task, assigned_to_id, shopping_list_id FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -2564,7 +2564,13 @@ app.put('/api/tasks/:id', (req, res) => {
   
   if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
   
-  const canEdit = task.owner_id === userId || task.assigned_to_id === userId;
+  let canEdit = task.owner_id === userId || task.assigned_to_id === userId;
+  
+  if (!canEdit && task.shopping_list_id) {
+    const accessibleIds = getAccessibleUserIds(userId, 'share_shopping');
+    canEdit = accessibleIds.includes(task.owner_id);
+  }
+  
   if (!canEdit) {
     return res.status(403).json({ error: 'No tienes permisos para editar esta tarea' });
   }
@@ -2584,7 +2590,7 @@ app.put('/api/tasks/:id/toggle', (req, res) => {
   
   const { id } = req.params;
   
-  const checkStmt = db.prepare('SELECT owner_id, completed FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, completed, shopping_list_id FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -2592,7 +2598,14 @@ app.put('/api/tasks/:id/toggle', (req, res) => {
   
   if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
   
-  if (task.owner_id !== userId) {
+  let canToggle = task.owner_id === userId;
+  
+  if (!canToggle && task.shopping_list_id) {
+    const accessibleIds = getAccessibleUserIds(userId, 'share_shopping');
+    canToggle = accessibleIds.includes(task.owner_id);
+  }
+  
+  if (!canToggle) {
     return res.status(403).json({ error: 'No tienes permisos' });
   }
   
@@ -2611,7 +2624,7 @@ app.delete('/api/tasks/:id', (req, res) => {
   
   const { id } = req.params;
   
-  const checkStmt = db.prepare('SELECT owner_id, assigned_to_id FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, assigned_to_id, shopping_list_id FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -2619,7 +2632,13 @@ app.delete('/api/tasks/:id', (req, res) => {
   
   if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
   
-  const canDelete = task.owner_id === userId || task.assigned_to_id === userId;
+  let canDelete = task.owner_id === userId || task.assigned_to_id === userId;
+  
+  if (!canDelete && task.shopping_list_id) {
+    const accessibleIds = getAccessibleUserIds(userId, 'share_shopping');
+    canDelete = accessibleIds.includes(task.owner_id);
+  }
+  
   if (!canDelete) {
     return res.status(403).json({ error: 'No tienes permisos para eliminar esta tarea' });
   }
