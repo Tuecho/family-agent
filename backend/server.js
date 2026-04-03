@@ -5382,8 +5382,8 @@ async function sendUserNotification(userId) {
     if (profileStmt.step()) profile = profileStmt.getAsObject();
     profileStmt.free();
 
-    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) AND (due_date IS NULL OR (due_date >= ? AND due_date <= ?) OR (due_date <= ? AND due_date >= ?)) ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
-    tasksStmt.bind([userId, tomorrowStr, nextWeekStr, nextWeekStr, tomorrowStr]);
+    const tasksStmt = db.prepare('SELECT * FROM family_tasks WHERE owner_id = ? AND completed = 0 AND (shopping_list_id IS NULL OR shopping_list_id = 0) ORDER BY CASE priority WHEN "high" THEN 0 WHEN "urgent" THEN 0 WHEN "normal" THEN 1 WHEN "low" THEN 2 ELSE 1 END, due_date ASC');
+    tasksStmt.bind([userId]);
     const tasks = [];
     while (tasksStmt.step()) {
       tasks.push(tasksStmt.getAsObject());
