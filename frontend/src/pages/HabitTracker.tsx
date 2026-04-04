@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Check, Edit2, Trash2, ArrowLeft, ArrowRight, Target, Pill, Apple, BookOpen, Dumbbell, Moon, Coffee, Heart, Clock, Folder, ChevronDown, ChevronRight, X, FolderPlus, Cross } from 'lucide-react';
+import { Plus, Check, Edit2, Trash2, ArrowLeft, ArrowRight, Target, Pill, Apple, BookOpen, Dumbbell, Moon, Coffee, Heart, Clock, Folder, ChevronDown, ChevronRight, X, FolderPlus, Cross, Languages, Music, Sparkles, Code, Briefcase, Utensils, Footprints, Smile, Users, Baby, Dog, Cat, Palette, GraduationCap, Laptop, UtensilsCrossed, HeartHandshake } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -20,6 +20,7 @@ interface Habit {
   target_value: number;
   recurrence: string;
   category_id: number | null;
+  specific_days: string | null;
 }
 
 interface HabitLog {
@@ -31,14 +32,30 @@ interface HabitLog {
 }
 
 const ICONS = [
-  { key: 'pill', icon: Pill, label: 'Pastillas' },
-  { key: 'apple', icon: Apple, label: 'Fruta' },
+  { key: 'pill', icon: Pill, label: 'Medicación' },
+  { key: 'apple', icon: Apple, label: 'Fruta/Comida' },
   { key: 'book', icon: BookOpen, label: 'Lectura' },
-  { key: 'dumbbell', icon: Dumbbell, label: 'Ejercicio' },
+  { key: 'dumbbell', icon: Dumbbell, label: 'Gimnasio/Ejercicio' },
   { key: 'moon', icon: Moon, label: 'Dormir' },
   { key: 'coffee', icon: Coffee, label: 'Desayuno' },
   { key: 'heart', icon: Heart, label: 'Salud' },
   { key: 'cross', icon: Cross, label: 'Religioso' },
+  { key: 'languages', icon: Languages, label: 'Idiomas' },
+  { key: 'music', icon: Music, label: 'Música' },
+  { key: 'code', icon: Code, label: 'Programación' },
+  { key: 'laptop', icon: Laptop, label: 'Trabajo/Estudio' },
+  { key: 'graduation', icon: GraduationCap, label: 'Universidad/Cursos' },
+  { key: 'briefcase', icon: Briefcase, label: 'Trabajo' },
+  { key: 'sparkles', icon: Sparkles, label: 'Meditación/Mental' },
+  { key: 'utensils', icon: Utensils, label: 'Comida/Cocina' },
+  { key: 'footprints', icon: Footprints, label: 'Caminar/Paseo' },
+  { key: 'smile', icon: Smile, label: 'Bienestar' },
+  { key: 'users', icon: Users, label: 'Social/Amigos' },
+  { key: 'baby', icon: Baby, label: 'Cuidado de niños' },
+  { key: 'dog', icon: Dog, label: 'Mascota' },
+  { key: 'cat', icon: Cat, label: 'Mascota' },
+  { key: 'palette', icon: Palette, label: 'Arte/Creatividad' },
+  { key: 'handshake', icon: HeartHandshake, label: 'Relaciones' },
   { key: 'target', icon: Target, label: 'Otro' },
 ];
 
@@ -52,13 +69,33 @@ const RECURRENCE_OPTIONS = [
   { key: 'weekdays', label: 'Lunes a viernes' },
   { key: 'weekends', label: 'Fines de semana' },
   { key: 'weekly', label: 'Una vez a la semana' },
+  { key: 'specific', label: 'Días específicos' },
 ];
 
-function getDaysOfWeek(recurrence: string): number[] {
+const DAYS_OF_WEEK = [
+  { key: 0, label: 'Dom' },
+  { key: 1, label: 'Lun' },
+  { key: 2, label: 'Mar' },
+  { key: 3, label: 'Mié' },
+  { key: 4, label: 'Jue' },
+  { key: 5, label: 'Vie' },
+  { key: 6, label: 'Sáb' },
+];
+
+function getDaysOfWeek(recurrence: string, specificDays?: string | null): number[] {
   switch (recurrence) {
     case 'daily': return [0, 1, 2, 3, 4, 5, 6];
     case 'weekdays': return [1, 2, 3, 4, 5];
     case 'weekends': return [0, 6];
+    case 'specific': 
+      if (specificDays) {
+        try {
+          return JSON.parse(specificDays);
+        } catch {
+          return [];
+        }
+      }
+      return [];
     case 'weekly': return [];
     default: return [0, 1, 2, 3, 4, 5, 6];
   }
@@ -66,7 +103,7 @@ function getDaysOfWeek(recurrence: string): number[] {
 
 function shouldShowHabitToday(habit: Habit): boolean {
   const today = new Date().getDay();
-  const days = getDaysOfWeek(habit.recurrence);
+  const days = getDaysOfWeek(habit.recurrence, habit.specific_days);
   return days.length === 0 || days.includes(today);
 }
 
@@ -89,7 +126,8 @@ export function HabitTracker() {
     target_type: 'boolean',
     target_value: 1,
     recurrence: 'daily',
-    category_id: null as number | null
+    category_id: null as number | null,
+    specific_days: null as number[] | null
   });
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
@@ -143,24 +181,30 @@ export function HabitTracker() {
     e.preventDefault();
     console.log('[HabitTracker] Submitting habit:', formData);
     try {
+      const payload = {
+        ...formData,
+        specific_days: formData.recurrence === 'specific' && formData.specific_days 
+          ? JSON.stringify(formData.specific_days) 
+          : null
+      };
       if (editingHabit) {
         console.log('[HabitTracker] Editing habit:', editingHabit.id);
         await fetch(`${API_URL}/api/habits/${editingHabit.id}`, {
           method: 'PUT',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
       } else {
         console.log('[HabitTracker] Creating new habit');
         await fetch(`${API_URL}/api/habits`, {
           method: 'POST',
           headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData)
+          body: JSON.stringify(payload)
         });
       }
       setShowForm(false);
       setEditingHabit(null);
-      setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null });
+      setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null });
       loadHabits();
     } catch (err) {
       console.error('Error saving habit:', err);
@@ -274,7 +318,8 @@ export function HabitTracker() {
           target_type: habit.target_type,
           target_value: habit.target_value,
           recurrence: habit.recurrence,
-          category_id: categoryId
+          category_id: categoryId,
+          specific_days: habit.specific_days
         })
       });
       setShowMoveMenu(null);
@@ -338,7 +383,7 @@ export function HabitTracker() {
           <button
             onClick={() => {
               setEditingHabit(null);
-              setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null });
+              setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null });
               setShowForm(true);
             }}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
@@ -447,7 +492,14 @@ export function HabitTracker() {
                       const log = logs[habit.id];
                       const isCompleted = log?.completed === 1;
                       const IconComponent = getIcon(habit.icon || 'pill');
-                      const recurrenceLabel = RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
+                      const recurrenceLabel = habit.recurrence === 'specific' && habit.specific_days
+                        ? (() => {
+                            try {
+                              const days = JSON.parse(habit.specific_days);
+                              return days.map((d: number) => DAYS_OF_WEEK.find(dow => dow.key === d)?.label).join(', ');
+                            } catch { return 'Días específicos'; }
+                          })()
+                        : RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
                       
                       return (
                         <div
@@ -523,7 +575,8 @@ export function HabitTracker() {
                                   target_type: habit.target_type,
                                   target_value: habit.target_value,
                                   recurrence: habit.recurrence,
-                                  category_id: habit.category_id
+                                  category_id: habit.category_id,
+                                  specific_days: habit.specific_days ? JSON.parse(habit.specific_days) : null
                                 });
                                 setShowForm(true);
                               }}
@@ -553,7 +606,14 @@ export function HabitTracker() {
                 const log = logs[habit.id];
                 const isCompleted = log?.completed === 1;
                 const IconComponent = getIcon(habit.icon || 'pill');
-                const recurrenceLabel = RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
+                const recurrenceLabel = habit.recurrence === 'specific' && habit.specific_days
+                  ? (() => {
+                      try {
+                        const days = JSON.parse(habit.specific_days);
+                        return days.map((d: number) => DAYS_OF_WEEK.find(dow => dow.key === d)?.label).join(', ');
+                      } catch { return 'Días específicos'; }
+                    })()
+                  : RECURRENCE_OPTIONS.find(r => r.key === habit.recurrence)?.label || 'Diario';
                 
                 return (
                   <div
@@ -629,7 +689,8 @@ export function HabitTracker() {
                             target_type: habit.target_type,
                             target_value: habit.target_value,
                             recurrence: habit.recurrence,
-                            category_id: habit.category_id
+                            category_id: habit.category_id,
+                            specific_days: habit.specific_days ? JSON.parse(habit.specific_days) : null
                           });
                           setShowForm(true);
                         }}
@@ -686,7 +747,65 @@ export function HabitTracker() {
                   placeholder="Ej: 30 minutos"
                 />
               </div>
-
+              
+              {formData.recurrence === 'specific' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Selecciona los días</label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map(day => {
+                      const isSelected = formData.specific_days?.includes(day.key);
+                      return (
+                        <button
+                          key={day.key}
+                          type="button"
+                          onClick={() => {
+                            const current = formData.specific_days || [];
+                            const updated = isSelected
+                              ? current.filter(d => d !== day.key)
+                              : [...current, day.key];
+                            setFormData({ ...formData, specific_days: updated });
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm transition-all ${
+                            isSelected
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
+              {formData.recurrence === 'weekly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Selecciona el día</label>
+                  <div className="flex flex-wrap gap-2">
+                    {DAYS_OF_WEEK.map(day => {
+                      const isSelected = formData.specific_days?.[0] === day.key;
+                      return (
+                        <button
+                          key={day.key}
+                          type="button"
+                          onClick={() => {
+                            setFormData({ ...formData, specific_days: [day.key] });
+                          }}
+                          className={`px-3 py-2 rounded-lg text-sm transition-all ${
+                            isSelected
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                 <select
@@ -765,7 +884,7 @@ export function HabitTracker() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingHabit(null);
-                    setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null });
+                    setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null });
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >

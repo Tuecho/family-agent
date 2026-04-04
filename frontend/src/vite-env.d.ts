@@ -7,3 +7,9 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+interface Window {
+  tasksDebug?: any;
+  pendingTasksDebug?: any[];
+  fetchTasksForDebug?: () => void;
+}

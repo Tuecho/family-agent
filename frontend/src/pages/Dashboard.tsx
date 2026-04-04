@@ -513,7 +513,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   
   const [profile, setProfile] = useState<Profile>({ family_name: 'Mi Familia', name: 'Usuario' });
   const [currentMonthBudgets, setCurrentMonthBudgets] = useState<any[]>([]);
-  const [weather, setWeather] = useState<{ city: string; temperature: number; description: string; isRainy: boolean; isSnowy: boolean } | null>(null);
+  const [weather, setWeather] = useState<{ city: string; temperature: number; apparentTemperature: number; description: string; isRainy: boolean; isSnowy: boolean } | null>(null);
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [pendingTasks, setPendingTasks] = useState<any[]>([]);
   const [tasksLoading, setTasksLoading] = useState(true);
@@ -567,7 +567,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       .then(res => res.json())
       .then(data => {
         const tareas = Array.isArray(data) ? data : [];
-        window.tasksDebug = tareas;
         const priorityOrder: Record<string, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
         const pendientes = tareas
           .filter((t: any) => t.completed !== 1 && !t.shopping_list_id)
@@ -578,30 +577,25 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             if (!a.due_date) return 1;
             if (!b.due_date) return -1;
             return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
-          })
-          .slice(0, 5);
-        window.pendingTasksDebug = pendientes;
+          });
         setPendingTasks(pendientes);
       })
       .finally(() => setTasksLoading(false));
-    
-    window.fetchTasksForDebug = () => {
-      console.log('Todas las tareas:', window.tasksDebug);
-      console.log('Tareas pendientes:', window.pendingTasksDebug);
-    };
-    
-    setPlansLoading(true);
+  }, [fetchTransactions, fetchMonthlyData, selectedMonth, selectedYear]);
+
+  useEffect(() => {
     const today = new Date();
+    const todayDay = today.getDate();
+    const todayMonth = today.toLocaleDateString('es-ES', { month: 'long' });
     const todayStr = today.toISOString().split('T')[0];
+    
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split('T')[0];
     
     fetch(`${API_URL}/api/events?from=${todayStr}&to=${todayStr}`, { headers: getAuthHeaders() })
       .then(res => res.json())
-      .then(data => {
-        setTodayPlans(Array.isArray(data) ? data : []);
-      })
+      .then(data => setTodayPlans(Array.isArray(data) ? data : []))
       .catch(() => {});
     
     fetch(`${API_URL}/api/events?from=${tomorrowStr}&to=${tomorrowStr}`, { headers: getAuthHeaders() })
@@ -612,7 +606,6 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       })
       .catch(() => setPlansLoading(false));
     
-    setBirthdaysLoading(true);
     fetch(`${API_URL}/api/family-members/birthdays`, { headers: getAuthHeaders() })
       .then(res => res.json())
       .then(data => {
@@ -622,7 +615,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setBirthdaysLoading(false);
       })
       .catch(() => setBirthdaysLoading(false));
-  }, [fetchTransactions, fetchMonthlyData, selectedMonth, selectedYear]);
+  }, []);
 
   const fetchProfile = async () => {
     try {
@@ -642,6 +635,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         setWeather({
           city: data.city,
           temperature: data.temperature,
+          apparentTemperature: data.apparentTemperature || null,
           description: data.description,
           isRainy: data.isRainy,
           isSnowy: data.isSnowy
@@ -667,10 +661,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       return acc;
     }, {} as Record<string, number>);
 
-  const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', {
-    month: 'long',
-    year: 'numeric'
-  });
+  const today = new Date();
+  const isCurrentMonth = () => selectedMonth === today.getMonth() + 1 && selectedYear === today.getFullYear();
+  
+  const monthLabel = isCurrentMonth()
+    ? today.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }) + ' de ' + today.getFullYear()
+    : new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
 
   const changeMonth = (delta: number) => {
     const d = new Date(selectedYear, selectedMonth - 1, 1);
@@ -678,15 +674,18 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     setSelectedMonthYear(d.getMonth() + 1, d.getFullYear());
   };
 
-  const isCurrentMonth = () => {
-    const now = new Date();
-    return selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear();
-  };
-
   const conceptLabelByKey = concepts.reduce((acc, c) => {
     acc[c.key] = c.label;
     return acc;
   }, {} as Record<string, string>);
+
+  const currentDate = new Date();
+  const currentDay = currentDate.getDate();
+  const currentDayMonth = currentDate.toLocaleDateString('es-ES', { month: 'long' });
+  const tomorrowDate = new Date();
+  tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+  const tomorrowDayNum = tomorrowDate.getDate();
+  const tomorrowMonthStr = tomorrowDate.toLocaleDateString('es-ES', { month: 'long' });
 
   return (
     <div className="p-3 sm:p-4 md:p-8">
@@ -701,6 +700,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <span className="font-medium text-gray-700">
                 {weather.temperature}°C
               </span>
+              {weather.apparentTemperature && (
+                <span className="text-gray-400 text-sm">
+                  (sensación {weather.apparentTemperature}°C)
+                </span>
+              )}
               <span className="text-gray-500 text-sm">
                 {weather.city} - {weather.description}
               </span>
@@ -812,7 +816,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
             <Calendar size={20} className="text-green-500" />
-            Planes para hoy
+            Planes para hoy ({currentDay} de {currentDayMonth})
           </h3>
           {plansLoading ? (
             <div className="flex justify-center py-8">
@@ -851,7 +855,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
             <Calendar size={20} className="text-purple-500" />
-            Planes para mañana
+            Planes para mañana ({tomorrowDayNum} de {tomorrowMonthStr})
           </h3>
           {plansLoading ? (
             <div className="flex justify-center py-8">

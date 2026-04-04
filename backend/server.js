@@ -280,6 +280,20 @@ async function initDb() {
   try { db.run(`ALTER TABLE shopping_lists ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE shopping_lists ADD COLUMN color TEXT DEFAULT '#22c55e'`); } catch(e) {}
 
+  db.run(`
+    CREATE TABLE IF NOT EXISTS shopping_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      list_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      quantity INTEGER DEFAULT 1,
+      unit TEXT,
+      checked INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  try { db.run(`ALTER TABLE shopping_items ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN shopping_list_id INTEGER`); } catch(e) {}
   try { db.run(`ALTER TABLE family_tasks ADD COLUMN assigned_to_id INTEGER`); } catch(e) {}
 
@@ -562,6 +576,7 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
   try { db.run(`ALTER TABLE habits ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE habits ADD COLUMN recurrence TEXT DEFAULT 'daily'`); } catch(e) {}
   try { db.run(`ALTER TABLE habits ADD COLUMN category_id INTEGER`); } catch(e) {}
+  try { db.run(`ALTER TABLE habits ADD COLUMN specific_days TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS habit_categories (
@@ -2021,11 +2036,12 @@ app.get('/api/weather', async (req, res) => {
     const { latitude, longitude } = geoData.results[0];
     
     const weatherResponse = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&timezone=auto`
     );
     const weatherData = await weatherResponse.json();
     
     const temp = weatherData.current?.temperature_2m;
+    const apparentTemp = weatherData.current?.apparent_temperature;
     const weatherCode = weatherData.current?.weather_code;
     
     const weatherDescriptions = {
@@ -2057,6 +2073,7 @@ app.get('/api/weather', async (req, res) => {
     res.json({
       city,
       temperature: temp,
+      apparentTemperature: apparentTemp,
       description,
       isRainy,
       isSnowy,
@@ -3226,13 +3243,13 @@ app.post('/api/habits', (req, res) => {
     console.log('[Habits] Error: No autorizado, headers:', req.headers);
     return res.status(401).json({ error: 'No autorizado' });
   }
-  const { name, description, icon, color, target_type, target_value, recurrence, category_id } = req.body;
+  const { name, description, icon, color, target_type, target_value, recurrence, category_id, specific_days } = req.body;
   if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
   
   console.log('[Habits] Creating habit:', { name, category_id, userId, body: req.body });
   
-  const stmt = db.prepare('INSERT INTO habits (owner_id, name, description, icon, color, target_type, target_value, recurrence, category_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  stmt.run([userId, name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', category_id || null]);
+  const stmt = db.prepare('INSERT INTO habits (owner_id, name, description, icon, color, target_type, target_value, recurrence, category_id, specific_days) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([userId, name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', category_id || null, specific_days || null]);
   stmt.free();
   saveDb();
   
@@ -3251,10 +3268,10 @@ app.put('/api/habits/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   const { id } = req.params;
-  const { name, description, icon, color, target_type, target_value, recurrence, category_id } = req.body;
+  const { name, description, icon, color, target_type, target_value, recurrence, category_id, specific_days } = req.body;
   
-  const stmt = db.prepare('UPDATE habits SET name = ?, description = ?, icon = ?, color = ?, target_type = ?, target_value = ?, recurrence = ?, category_id = ? WHERE id = ? AND owner_id = ?');
-  stmt.run([name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', category_id !== undefined ? category_id : null, id, userId]);
+  const stmt = db.prepare('UPDATE habits SET name = ?, description = ?, icon = ?, color = ?, target_type = ?, target_value = ?, recurrence = ?, category_id = ?, specific_days = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, description || null, icon || null, color || '#22c55e', target_type || 'boolean', target_value || 1, recurrence || 'daily', category_id !== undefined ? category_id : null, specific_days || null, id, userId]);
   stmt.free();
   saveDb();
   res.json({ success: true });
