@@ -25,6 +25,22 @@ const PORT = process.env.PORT || 3000;
 const DB_FILE = './family_agent.db';
 const GROQ_API_KEY = process.env.GROQ_API_KEY || '';
 
+const ALL_TABLES = [
+  'auth_user', 'user_profile', 'transactions', 'budgets', 'family_events', 
+  'expense_concepts', 'family_tasks', 'family_members', 'birthdays', 
+  'family_notes', 'note_boards', 'shopping_lists', 'shopping_items',
+  'family_contacts', 'family_gifts', 'books', 'movies', 
+  'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery',
+  'invitations', 'user_shares', 'habits', 'habit_logs', 'habit_categories',
+  'home_inventory', 'home_inventory_categories', 'home_maintenance', 'subscriptions',
+  'pet_tracker', 'pet_vaccines', 'pet_medications',
+  'travel_manager', 'savings_pigs', 'savings_goals', 
+  'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
+  'work_shifts', 'work_settings',
+  'password_reset_codes', 'app_settings', 'notification_settings',
+  'faqs', 'suggestions', 'contact_messages', 'sales_contacts'
+];
+
 let db;
 
 async function initDb() {
@@ -2522,18 +2538,7 @@ app.get('/api/export', (req, res) => {
       full_backup: true
     };
     
-    const tables = [
-      'auth_user', 'user_profile', 'transactions', 'budgets', 'family_events', 
-      'expense_concepts', 'family_tasks', 'family_members', 'birthdays', 
-      'family_notes', 'note_boards', 'shopping_lists', 'shopping_items',
-      'family_contacts', 'family_gifts', 'books', 'movies', 
-      'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery',
-      'invitations', 'user_shares', 'habits', 'habit_logs',
-      'home_inventory', 'home_maintenance', 'subscriptions',
-      'pet_tracker', 'travel_manager', 'savings_goals', 
-      'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
-      'work_shifts', 'work_settings'
-    ];
+    const tables = ALL_TABLES;
     
     for (const table of tables) {
       try {
@@ -2911,7 +2916,7 @@ app.post('/api/import/db', upload.single('file'), async (req, res) => {
   try {
     const backupDb = new (await initSqlJs()).Database(req.file.buffer);
     
-    const tables = ['transactions', 'budgets', 'family_events', 'family_tasks', 'family_notes', 'note_boards', 'family_members', 'shopping_lists', 'family_contacts', 'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery', 'auth_user', 'user_profile', 'notification_settings', 'expense_concepts', 'faqs', 'user_shares', 'invitations', 'suggestions', 'app_settings', 'family_gifts', 'books', 'movies', 'birthdays', 'home_inventory', 'home_maintenance', 'subscriptions', 'pet_tracker', 'travel_manager', 'savings_goals', 'work_shifts', 'work_settings'];
+    const tables = ALL_TABLES;
     let importedCount = 0;
     
     for (const table of tables) {

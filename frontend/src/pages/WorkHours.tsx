@@ -254,6 +254,8 @@ export function WorkHours() {
   const getWeekSummary = () => {
     const weekDates = getWeekDates();
     const targetHours = settings?.daily_target_hours || 2;
+    const workDaysArray = (settings?.work_days || '0,1,2,3,4,5,6').split(',');
+    const workDaysCount = workDaysArray.length;
     let totalHours = 0;
     let daysWorked = 0;
     
@@ -268,7 +270,7 @@ export function WorkHours() {
     return {
       totalHours,
       daysWorked,
-      targetHours: targetHours * 7,
+      targetHours: targetHours * workDaysCount,
       targetDaily: targetHours,
       dayStats
     };
