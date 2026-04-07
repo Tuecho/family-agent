@@ -70,6 +70,7 @@ export function Agenda() {
     location: '',
     recurrence: '',
     days_of_week: [] as number[],
+    recurrence_start_date: '',
   });
 
   const fetchEvents = async () => {
@@ -121,6 +122,7 @@ export function Agenda() {
       location: '',
       recurrence: '',
       days_of_week: [],
+      recurrence_start_date: '',
     });
     setShowModal(true);
   };
@@ -138,6 +140,7 @@ export function Agenda() {
       location: event.location || '',
       recurrence: event.recurrence || '',
       days_of_week: event.days_of_week ? event.days_of_week.split(',').map(Number) : [],
+      recurrence_start_date: (event as any).recurrence_start_date || '',
     });
     setShowModal(true);
   };
@@ -153,6 +156,10 @@ export function Agenda() {
       alert('Selecciona al menos un día para el evento diario');
       return;
     }
+    if (formData.recurrence === 'biweekly' && formData.days_of_week.length === 0) {
+      alert('Selecciona al menos un día de la semana para eventos quincenales');
+      return;
+    }
 
     const id = editingEvent?.id ?? Math.random().toString(36).substring(2, 9);
     const payload = {
@@ -166,7 +173,8 @@ export function Agenda() {
       type: formData.type,
       location: formData.location,
       recurrence: formData.recurrence || null,
-      days_of_week: (formData.recurrence === 'weekly' || formData.recurrence === 'daily') && formData.days_of_week.length > 0 ? formData.days_of_week.sort((a,b) => a-b).join(',') : null,
+      days_of_week: (formData.recurrence === 'weekly' || formData.recurrence === 'daily' || formData.recurrence === 'biweekly') && formData.days_of_week.length > 0 ? formData.days_of_week.sort((a,b) => a-b).join(',') : null,
+      recurrence_start_date: (formData.recurrence === 'biweekly' || formData.recurrence === 'weekly') && formData.recurrence_start_date ? formData.recurrence_start_date : null,
     };
 
     try {
@@ -227,13 +235,112 @@ export function Agenda() {
   const eventsByDate: Record<string, FamilyEvent[]> = events.reduce((acc, ev) => {
     const startDate = new Date(ev.date);
     const endDate = ev.end_date ? new Date(ev.end_date) : startDate;
+    const recurrenceStartDate = (ev as any).recurrence_start_date ? new Date((ev as any).recurrence_start_date) : startDate;
     const current = new Date(startDate);
     
-    while (current <= endDate) {
-      const key = formatISODate(current);
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(ev);
-      current.setDate(current.getDate() + 1);
+    if (ev.recurrence === 'biweekly' && ev.days_of_week) {
+      const targetDays = ev.days_of_week.split(',').map(Number);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const viewEnd = new Date(currentDate);
+      if (view === 'month') {
+        const { lastDayOfMonth } = generateMonthGrid(viewEnd);
+        viewEnd.setTime(lastDayOfMonth.getTime());
+      } else if (view === 'week') {
+        viewEnd.setDate(viewEnd.getDate() + 7);
+      }
+      
+      let cursor = new Date(recurrenceStartDate);
+      while (cursor <= viewEnd) {
+        const dayOfWeek = cursor.getDay();
+        if (targetDays.includes(dayOfWeek)) {
+          const key = formatISODate(cursor);
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(ev);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else if (ev.recurrence === 'weekly' && ev.days_of_week) {
+      const targetDays = ev.days_of_week.split(',').map(Number);
+      const viewEnd = new Date(currentDate);
+      if (view === 'month') {
+        const { lastDayOfMonth } = generateMonthGrid(viewEnd);
+        viewEnd.setTime(lastDayOfMonth.getTime());
+      } else if (view === 'week') {
+        viewEnd.setDate(viewEnd.getDate() + 7);
+      }
+      
+      let cursor = new Date(recurrenceStartDate);
+      while (cursor <= viewEnd) {
+        const dayOfWeek = cursor.getDay();
+        if (targetDays.includes(dayOfWeek)) {
+          const key = formatISODate(cursor);
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(ev);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else if (ev.recurrence === 'daily' && ev.days_of_week) {
+      const targetDays = ev.days_of_week.split(',').map(Number);
+      const viewEnd = new Date(currentDate);
+      if (view === 'month') {
+        const { lastDayOfMonth } = generateMonthGrid(viewEnd);
+        viewEnd.setTime(lastDayOfMonth.getTime());
+      } else if (view === 'week') {
+        viewEnd.setDate(viewEnd.getDate() + 7);
+      }
+      
+      let cursor = new Date(startDate);
+      while (cursor <= viewEnd) {
+        const dayOfWeek = cursor.getDay();
+        if (targetDays.includes(dayOfWeek)) {
+          const key = formatISODate(cursor);
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(ev);
+        }
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    } else if (ev.recurrence === 'monthly') {
+      const viewEnd = new Date(currentDate);
+      if (view === 'month') {
+        const { lastDayOfMonth } = generateMonthGrid(viewEnd);
+        viewEnd.setTime(lastDayOfMonth.getTime());
+      } else if (view === 'week') {
+        viewEnd.setDate(viewEnd.getDate() + 7);
+      }
+      
+      let cursor = new Date(startDate);
+      while (cursor <= viewEnd) {
+        if (cursor.getDate() === startDate.getDate()) {
+          const key = formatISODate(cursor);
+          if (!acc[key]) acc[key] = [];
+          acc[key].push(ev);
+        }
+        cursor.setMonth(cursor.getMonth() + 1);
+      }
+    } else if (ev.recurrence === 'annual') {
+      const viewEnd = new Date(currentDate);
+      if (view === 'month') {
+        const { lastDayOfMonth } = generateMonthGrid(viewEnd);
+        viewEnd.setTime(lastDayOfMonth.getTime());
+      } else if (view === 'week') {
+        viewEnd.setDate(viewEnd.getDate() + 7);
+      }
+      
+      let cursor = new Date(startDate);
+      while (cursor <= viewEnd) {
+        const key = formatISODate(cursor);
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(ev);
+        cursor.setFullYear(cursor.getFullYear() + 1);
+      }
+    } else {
+      while (current <= endDate) {
+        const key = formatISODate(current);
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(ev);
+        current.setDate(current.getDate() + 1);
+      }
     }
     return acc;
   }, {} as Record<string, FamilyEvent[]>);
@@ -494,6 +601,11 @@ export function Agenda() {
                           🔄 Semanal {ev.days_of_week ? `(${getDaysLabel(ev.days_of_week)})` : ''}
                         </p>
                       )}
+                      {ev.recurrence === 'biweekly' && (
+                        <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                          🔄 Quincenal {ev.days_of_week ? `(${getDaysLabel(ev.days_of_week)})` : ''}
+                        </p>
+                      )}
                       {ev.recurrence === 'daily' && ev.days_of_week && (
                         <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
                           🔄 Diario ({getDaysLabel(ev.days_of_week)})
@@ -704,6 +816,17 @@ export function Agenda() {
                   >
                     Anualmente
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, recurrence: 'biweekly', days_of_week: [] })}
+                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${
+                      formData.recurrence === 'biweekly' 
+                        ? 'bg-primary text-white' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    Quincenal
+                  </button>
                 </div>
                 {formData.recurrence === 'weekly' && (
                   <div className="mt-3">
@@ -808,6 +931,57 @@ export function Agenda() {
                     {formData.days_of_week.length === 0 && (
                       <p className="text-xs text-red-500 mt-1">Selecciona al menos un día</p>
                     )}
+                  </div>
+                )}
+                {formData.recurrence === 'biweekly' && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-500 mb-2">Selecciona el día de la semana:</p>
+                    <div className="flex gap-2">
+                      {[
+                        { num: 1, label: 'L' },
+                        { num: 2, label: 'M' },
+                        { num: 3, label: 'X' },
+                        { num: 4, label: 'J' },
+                        { num: 5, label: 'V' },
+                        { num: 6, label: 'S' },
+                        { num: 0, label: 'D' },
+                      ].map(({ num, label }) => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => {
+                            const current = formData.days_of_week;
+                            const updated = current.includes(num)
+                              ? current.filter(d => d !== num)
+                              : [...current, num];
+                            setFormData({ ...formData, days_of_week: updated });
+                          }}
+                          className={`w-9 h-9 rounded-full text-sm font-medium transition-colors ${
+                            formData.days_of_week.includes(num)
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">Se repetirá cada 2 semanas desde la fecha de inicio</p>
+                    {formData.days_of_week.length === 0 && (
+                      <p className="text-xs text-expense mt-1">Selecciona un día</p>
+                    )}
+                    <div className="mt-3">
+                      <label className="block text-xs text-gray-500 mb-1">
+                        Iniciar repetición desde:
+                      </label>
+                      <input
+                        type="date"
+                        value={formData.recurrence_start_date}
+                        onChange={(e) => setFormData({ ...formData, recurrence_start_date: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">Por defecto es la fecha de inicio del evento</p>
+                    </div>
                   </div>
                 )}
               </div>

@@ -51,6 +51,16 @@ interface SharedUser {
   share_books: number;
   share_movies: number;
   share_habits: number;
+  share_home_inventory: number;
+  share_home_maintenance: number;
+  share_subscriptions: number;
+  share_pet_tracker: number;
+  share_travel_manager: number;
+  share_savings_goals: number;
+  share_internal_debts: number;
+  share_utility_bills: number;
+  share_family_library: number;
+  share_extra_school: number;
 }
 
 interface SharePreferences {
@@ -69,6 +79,16 @@ interface SharePreferences {
   share_books: boolean;
   share_movies: boolean;
   share_habits: boolean;
+  share_home_inventory: boolean;
+  share_home_maintenance: boolean;
+  share_subscriptions: boolean;
+  share_pet_tracker: boolean;
+  share_travel_manager: boolean;
+  share_savings_goals: boolean;
+  share_internal_debts: boolean;
+  share_utility_bills: boolean;
+  share_family_library: boolean;
+  share_extra_school: boolean;
 }
 
 export function Profile() {
@@ -114,7 +134,17 @@ export function Profile() {
     share_gifts: false,
     share_books: false,
     share_movies: false,
-    share_habits: false
+    share_habits: false,
+    share_home_inventory: true,
+    share_home_maintenance: true,
+    share_subscriptions: true,
+    share_pet_tracker: true,
+    share_travel_manager: true,
+    share_savings_goals: true,
+    share_internal_debts: true,
+    share_utility_bills: true,
+    share_family_library: true,
+    share_extra_school: true,
   });
 
   useEffect(() => {
@@ -197,7 +227,17 @@ export function Profile() {
           share_gifts: false,
           share_books: false,
           share_movies: false,
-          share_habits: false
+          share_habits: false,
+          share_home_inventory: true,
+          share_home_maintenance: true,
+          share_subscriptions: true,
+          share_pet_tracker: true,
+          share_travel_manager: true,
+          share_savings_goals: true,
+          share_internal_debts: true,
+          share_utility_bills: true,
+          share_family_library: true,
+          share_extra_school: true,
         });
         fetchInvitations();
       } else {
@@ -247,7 +287,17 @@ export function Profile() {
       share_gifts: !!share.share_gifts,
       share_books: !!share.share_books,
       share_movies: !!share.share_movies,
-      share_habits: !!share.share_habits
+      share_habits: !!share.share_habits,
+      share_home_inventory: !!share.share_home_inventory,
+      share_home_maintenance: !!share.share_home_maintenance,
+      share_subscriptions: !!share.share_subscriptions,
+      share_pet_tracker: !!share.share_pet_tracker,
+      share_travel_manager: !!share.share_travel_manager,
+      share_savings_goals: !!share.share_savings_goals,
+      share_internal_debts: !!share.share_internal_debts,
+      share_utility_bills: !!share.share_utility_bills,
+      share_family_library: !!share.share_family_library,
+      share_extra_school: !!share.share_extra_school,
     });
     setShowShareModal(true);
   };
@@ -269,7 +319,17 @@ export function Profile() {
       share_gifts: false,
       share_books: false,
       share_movies: false,
-      share_habits: false
+      share_habits: false,
+      share_home_inventory: true,
+      share_home_maintenance: true,
+      share_subscriptions: true,
+      share_pet_tracker: true,
+      share_travel_manager: true,
+      share_savings_goals: true,
+      share_internal_debts: true,
+      share_utility_bills: true,
+      share_family_library: true,
+      share_extra_school: true,
     });
     setInviteUsername('');
     setAvailableUsers([]);

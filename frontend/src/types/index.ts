@@ -33,6 +33,7 @@ export interface FamilyEvent {
   location?: string;
   recurrence?: string;
   days_of_week?: string;
+  recurrence_start_date?: string;
 }
 
 export interface Restaurant {

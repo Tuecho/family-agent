@@ -21,6 +21,7 @@ interface Habit {
   recurrence: string;
   category_id: number | null;
   specific_days: string | null;
+  start_date: string | null;
 }
 
 interface HabitLog {
@@ -69,6 +70,7 @@ const RECURRENCE_OPTIONS = [
   { key: 'weekdays', label: 'Lunes a viernes' },
   { key: 'weekends', label: 'Fines de semana' },
   { key: 'weekly', label: 'Una vez a la semana' },
+  { key: 'biweekly', label: 'Cada 2 semanas' },
   { key: 'specific', label: 'Días específicos' },
 ];
 
@@ -89,6 +91,7 @@ function getDaysOfWeek(recurrence: string, specificDays?: string | null): number
     case 'weekends': return [0, 6];
     case 'specific': 
     case 'weekly':
+    case 'biweekly':
       if (specificDays) {
         try {
           return JSON.parse(specificDays);
@@ -107,6 +110,22 @@ function shouldShowHabitToday(habit: Habit, checkDate?: Date): boolean {
   console.log('[shouldShowHabitToday] habit:', habit.name, 'recurrence:', habit.recurrence, 'specific_days:', habit.specific_days, 'checkDate:', dateToCheck.toDateString(), 'dayOfWeek (0=Dom,6=Sáb):', dayOfWeek);
   const days = getDaysOfWeek(habit.recurrence, habit.specific_days);
   console.log('[shouldShowHabitToday] days:', days, 'includes dayOfWeek:', days.includes(dayOfWeek), 'days.length:', days.length);
+  
+  if (habit.recurrence === 'biweekly') {
+    if (!habit.start_date) {
+      const today = new Date();
+      habit.start_date = today.toISOString().split('T')[0];
+    }
+    const startDate = new Date(habit.start_date);
+    const diffTime = dateToCheck.getTime() - startDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const weeksDiff = Math.floor(diffDays / 14);
+    const isEvenWeek = weeksDiff % 2 === 0;
+    const result = days.length > 0 && days.includes(dayOfWeek) && isEvenWeek;
+    console.log('[shouldShowHabitToday] biweekly check:', { startDate: habit.start_date, diffDays, weeksDiff, isEvenWeek, result });
+    return result;
+  }
+  
   const result = days.length > 0 && days.includes(dayOfWeek);
   console.log('[shouldShowHabitToday] result:', result);
   return result;
@@ -132,7 +151,8 @@ export function HabitTracker() {
     target_value: 1,
     recurrence: 'daily',
     category_id: null as number | null,
-    specific_days: null as number[] | null
+    specific_days: null as number[] | null,
+    start_date: null as string | null
   });
   const [categoryFormData, setCategoryFormData] = useState({
     name: '',
@@ -188,7 +208,7 @@ export function HabitTracker() {
     console.log('[HabitTracker] Submitting habit:', formData);
     try {
       let specificDaysValue: string | null = null;
-      if (formData.recurrence === 'weekly') {
+      if (formData.recurrence === 'weekly' || formData.recurrence === 'biweekly') {
         specificDaysValue = formData.specific_days && formData.specific_days.length > 0 
           ? JSON.stringify(formData.specific_days) 
           : '[0]';
@@ -216,7 +236,7 @@ export function HabitTracker() {
       }
       setShowForm(false);
       setEditingHabit(null);
-      setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null });
+      setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null, start_date: null });
       loadHabits();
     } catch (err) {
       console.error('Error saving habit:', err);
@@ -506,7 +526,9 @@ export function HabitTracker() {
                       const log = logs[habit.id];
                       const isCompleted = log?.completed === 1;
                       const IconComponent = getIcon(habit.icon || 'pill');
-                      const recurrenceLabel = habit.recurrence === 'specific' && habit.specific_days
+                      const recurrenceLabel = habit.recurrence === 'biweekly'
+                        ? 'Cada 2 semanas'
+                        : habit.recurrence === 'specific' && habit.specific_days
                         ? (() => {
                             try {
                               const days = JSON.parse(habit.specific_days);
@@ -590,7 +612,8 @@ export function HabitTracker() {
                                   target_value: habit.target_value,
                                   recurrence: habit.recurrence,
                                   category_id: habit.category_id,
-                                  specific_days: habit.specific_days ? JSON.parse(habit.specific_days) : null
+                                  specific_days: habit.specific_days ? JSON.parse(habit.specific_days) : null,
+                                  start_date: habit.start_date
                                 });
                                 setShowForm(true);
                               }}
@@ -620,7 +643,9 @@ export function HabitTracker() {
                 const log = logs[habit.id];
                 const isCompleted = log?.completed === 1;
                 const IconComponent = getIcon(habit.icon || 'pill');
-                const recurrenceLabel = habit.recurrence === 'specific' && habit.specific_days
+                const recurrenceLabel = habit.recurrence === 'biweekly'
+                  ? 'Cada 2 semanas'
+                  : habit.recurrence === 'specific' && habit.specific_days
                   ? (() => {
                       try {
                         const days = JSON.parse(habit.specific_days);
@@ -704,7 +729,8 @@ export function HabitTracker() {
                             target_value: habit.target_value,
                             recurrence: habit.recurrence,
                             category_id: habit.category_id,
-                            specific_days: habit.specific_days ? JSON.parse(habit.specific_days) : null
+                            specific_days: habit.specific_days ? JSON.parse(habit.specific_days) : null,
+                            start_date: habit.start_date
                           });
                           setShowForm(true);
                         }}
@@ -817,14 +843,14 @@ export function HabitTracker() {
                 </div>
               </div>
               
-              {(formData.recurrence === 'specific' || formData.recurrence === 'weekly') && (
+              {(formData.recurrence === 'specific' || formData.recurrence === 'weekly' || formData.recurrence === 'biweekly') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {formData.recurrence === 'specific' ? 'Selecciona los días' : 'Selecciona el día'}
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {DAYS_OF_WEEK.map(day => {
-                      const isSelected = formData.recurrence === 'weekly' 
+                      const isSelected = (formData.recurrence === 'weekly' || formData.recurrence === 'biweekly') 
                         ? formData.specific_days?.[0] === day.key
                         : formData.specific_days?.includes(day.key);
                       return (
@@ -832,7 +858,7 @@ export function HabitTracker() {
                           key={day.key}
                           type="button"
                           onClick={() => {
-                            if (formData.recurrence === 'weekly') {
+                            if (formData.recurrence === 'weekly' || formData.recurrence === 'biweekly') {
                               setFormData({ ...formData, specific_days: [day.key] });
                             } else {
                               const current = formData.specific_days || [];
@@ -853,6 +879,19 @@ export function HabitTracker() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+              
+              {formData.recurrence === 'biweekly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de inicio</label>
+                  <input
+                    type="date"
+                    value={formData.start_date || ''}
+                    onChange={e => setFormData({ ...formData, start_date: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">El hábito se repetirá cada 2 semanas a partir de esta fecha</p>
                 </div>
               )}
               
@@ -879,7 +918,7 @@ export function HabitTracker() {
                   onClick={() => {
                     setShowForm(false);
                     setEditingHabit(null);
-                    setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null });
+                    setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null, start_date: null });
                   }}
                   className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
                 >

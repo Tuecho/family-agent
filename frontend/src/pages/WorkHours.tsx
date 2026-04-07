@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Clock, Play, Square, Calendar, AlertTriangle, History, ChevronLeft, ChevronRight, Edit2, Trash2, X, Check, Settings } from 'lucide-react';
+import { Clock, Play, Square, Calendar, AlertTriangle, History, ChevronLeft, ChevronRight, Edit2, Trash2, X, Check, Settings, Mail } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -61,6 +61,9 @@ export function WorkHours() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingShift, setEditingShift] = useState<WorkShift | null>(null);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailForm, setEmailForm] = useState({ email_to: '', startDate: '', endDate: '' });
+  const [sendingEmail, setSendingEmail] = useState(false);
   
   const [shiftForm, setShiftForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -212,6 +215,36 @@ export function WorkHours() {
     }
   };
 
+  const sendEmailReport = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSendingEmail(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const res = await fetch(`${API_URL}/api/work-hours/send-email`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          email_to: emailForm.email_to || null,
+          startDate: emailForm.startDate || null,
+          endDate: emailForm.endDate || null
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('Email enviado correctamente');
+        setShowEmailModal(false);
+        setEmailForm({ email_to: '', startDate: '', endDate: '' });
+      } else {
+        alert('Error: ' + data.error);
+      }
+    } catch (error) {
+      console.error('Error sending email:', error);
+      alert('Error al enviar email');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const handleManualShiftSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('Submitting shift form:', shiftForm);
@@ -296,12 +329,26 @@ export function WorkHours() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowSettings(true)}
-          className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
-        >
-          <Settings size={20} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const today = new Date();
+              const startOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+              setEmailForm({ ...emailForm, startDate: startOfYear, endDate: today.toISOString().split('T')[0] });
+              setShowEmailModal(true);
+            }}
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Enviar informe por email"
+          >
+            <Mail size={20} />
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -621,6 +668,61 @@ export function WorkHours() {
                   {editingShift ? 'Guardar' : 'Crear'}
                 </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showEmailModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800">Enviar informe por email</h3>
+              <button onClick={() => setShowEmailModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <form onSubmit={sendEmailReport} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email de destino</label>
+                <input
+                  type="email"
+                  value={emailForm.email_to}
+                  onChange={(e) => setEmailForm({ ...emailForm, email_to: e.target.value })}
+                  placeholder="dejar vacío para usar el configurado"
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                  <input
+                    type="date"
+                    value={emailForm.startDate}
+                    onChange={(e) => setEmailForm({ ...emailForm, startDate: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                  <input
+                    type="date"
+                    value={emailForm.endDate}
+                    onChange={(e) => setEmailForm({ ...emailForm, endDate: e.target.value })}
+                    className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+              
+              <button
+                type="submit"
+                disabled={sendingEmail}
+                className="w-full py-3 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-medium disabled:opacity-50"
+              >
+                {sendingEmail ? 'Enviando...' : 'Enviar informe'}
+              </button>
             </form>
           </div>
         </div>
