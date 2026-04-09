@@ -16,6 +16,8 @@ interface WorkShift {
 interface WorkSettings {
   daily_target_hours: number;
   work_days: string;
+  weekly_target_hours: number;
+  accumulated_hours: number;
   alert_on_overtime: number;
 }
 
@@ -51,6 +53,34 @@ function getDayName(dateStr: string): string {
   return days[date.getDay()];
 }
 
+function generateWorkHoursReport(shifts: WorkShift[], settings: WorkSettings | null, summary: { totalHours: number, targetHours: number, dayStats: { date: string, hours: number }[] }, accumulatedData: { weekly_target: number, week_hours: number, accumulated_hours: number }): string {
+  const lines: string[] = [];
+  lines.push('📊 Resumen de Horas de Trabajo');
+  lines.push('================================');
+  lines.push('');
+  lines.push('⏰ Horas esta semana:');
+  lines.push(`  Total: ${formatHours(summary.totalHours)}`);
+  lines.push(`  Meta: ${formatHours(summary.targetHours)}`);
+  if (summary.totalHours > summary.targetHours) {
+    lines.push(`  ⚠️ Exceso: ${formatHours(summary.totalHours - summary.targetHours)}`);
+  }
+  lines.push('');
+  lines.push('📅 Detalle por día:');
+  summary.dayStats.forEach(day => {
+    if (day.hours > 0) {
+      const dayName = getDayName(day.date);
+      const date = new Date(day.date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+      lines.push(`  ${dayName} ${date}: ${formatHours(day.hours)}`);
+    }
+  });
+  lines.push('');
+  lines.push('📈 Horas acumuladas:');
+  lines.push(`  Accumulated: ${formatHours(accumulatedData.accumulated_hours)}`);
+  lines.push('');
+  lines.push('Generado por Family Agent');
+  return lines.join('\n');
+}
+
 export function WorkHours() {
   const [shifts, setShifts] = useState<WorkShift[]>([]);
   const [settings, setSettings] = useState<WorkSettings | null>(null);
@@ -64,6 +94,7 @@ export function WorkHours() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailForm, setEmailForm] = useState({ email_to: '', startDate: '', endDate: '' });
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [accumulatedData, setAccumulatedData] = useState({ weekly_target: 40, week_hours: 0, accumulated_hours: 0, week_overtime: 0 });
   
   const [shiftForm, setShiftForm] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -111,16 +142,19 @@ export function WorkHours() {
     const startDate = weekDates[0];
     const endDate = weekDates[weekDates.length - 1];
     
-    const [shiftsRes, settingsRes] = await Promise.all([
+    const [shiftsRes, settingsRes, accumulatedRes] = await Promise.all([
       fetch(`${API_URL}/api/work-shifts?startDate=${startDate}&endDate=${endDate}`, { headers }),
-      fetch(`${API_URL}/api/work-settings`, { headers })
+      fetch(`${API_URL}/api/work-settings`, { headers }),
+      fetch(`${API_URL}/api/work-hours/accumulated`, { headers })
     ]);
     
     const shiftsData = await shiftsRes.json();
     const settingsData = await settingsRes.json();
+    const accumulatedData = await accumulatedRes.json();
     
     setShifts(Array.isArray(shiftsData) ? shiftsData : []);
     setSettings(settingsData);
+    setAccumulatedData(accumulatedData);
     setSettingsForm({
       daily_target_hours: settingsData.daily_target_hours || 2,
       work_days: settingsData.work_days || '0,1,2,3,4,5,6',
@@ -198,7 +232,17 @@ export function WorkHours() {
         headers,
         body: JSON.stringify(settingsForm)
       });
+      
+      if (accumulatedData.week_overtime > 0) {
+        await fetch(`${API_URL}/api/work-hours/update-accumulated`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ accumulated_hours: accumulatedData.accumulated_hours })
+        });
+      }
+      
       setShowSettings(false);
+      fetchData();
     } catch (error) {
       console.error('Error saving settings:', error);
     }
@@ -286,9 +330,10 @@ export function WorkHours() {
 
   const getWeekSummary = () => {
     const weekDates = getWeekDates();
-    const targetHours = settings?.daily_target_hours || 2;
+    const dailyTarget = settings?.daily_target_hours || 2;
     const workDaysArray = (settings?.work_days || '0,1,2,3,4,5,6').split(',');
     const workDaysCount = workDaysArray.length;
+    const weeklyTarget = dailyTarget * workDaysCount;
     let totalHours = 0;
     let daysWorked = 0;
     
@@ -303,8 +348,8 @@ export function WorkHours() {
     return {
       totalHours,
       daysWorked,
-      targetHours: targetHours * workDaysCount,
-      targetDaily: targetHours,
+      targetHours: weeklyTarget,
+      targetDaily: dailyTarget,
       dayStats
     };
   };
@@ -314,6 +359,7 @@ export function WorkHours() {
   const todayDate = new Date().toISOString().split('T')[0];
   const todayCompletedShifts = shifts.filter(s => s.date === todayDate && s.hours_worked);
   const todayHours = todayCompletedShifts.reduce((sum, s) => sum + (s.hours_worked || 0), 0);
+  const weeklyTarget = settings?.weekly_target_hours || accumulatedData.weekly_target || 40;
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto">
@@ -341,6 +387,32 @@ export function WorkHours() {
             title="Enviar informe por email"
           >
             <Mail size={20} />
+          </button>
+          <button
+            onClick={() => {
+              const text = generateWorkHoursReport(shifts, settings, summary, accumulatedData);
+              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(text)}`;
+              window.open(whatsappUrl, '_blank');
+            }}
+            className="p-2 text-green-500 hover:text-green-600 transition-colors"
+            title="Compartir por WhatsApp"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+          </button>
+          <button
+            onClick={() => {
+              const text = generateWorkHoursReport(shifts, settings, summary, accumulatedData);
+              const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(text)}`;
+              window.open(telegramUrl, '_blank');
+            }}
+            className="p-2 text-blue-500 hover:text-blue-600 transition-colors"
+            title="Compartir por Telegram"
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+            </svg>
           </button>
           <button
             onClick={() => setShowSettings(true)}
@@ -448,6 +520,42 @@ export function WorkHours() {
                 Has excedido las horas objetivo esta semana
               </div>
             )}
+          </div>
+
+          <div className="bg-white rounded-xl border p-4 mb-4 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-700 flex items-center gap-2">
+                <Clock size={18} />
+                Horas acumuladas
+              </h3>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-3 bg-blue-50 rounded-lg">
+                <div className="text-xs text-gray-500 mb-1">Meta semanal</div>
+                <div className="text-xl font-bold text-gray-800">{formatHours(summary.targetHours)}</div>
+              </div>
+              <div className="text-center p-3 bg-gray-50 rounded-lg">
+                <div className="text-xs text-gray-500 mb-1">Esta semana</div>
+                <div className={`text-xl font-bold ${accumulatedData.week_hours > summary.targetHours ? 'text-red-500' : 'text-gray-800'}`}>
+                  {formatHours(accumulatedData.week_hours)}
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-3 pt-3 border-t">
+              <div className="flex items-center justify-between">
+                <span className="text-gray-600">Horas acumuladas:</span>
+                <span className={`text-lg font-bold ${accumulatedData.accumulated_hours > 0 ? 'text-orange-500' : 'text-green-500'}`}>
+                  {formatHours(accumulatedData.accumulated_hours)}
+                </span>
+              </div>
+              {accumulatedData.week_overtime > 0 && (
+                <div className="text-xs text-orange-500 mt-1">
+                  +{formatHours(accumulatedData.week_overtime)} añadido esta semana
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="bg-white rounded-xl border p-4 shadow-sm">

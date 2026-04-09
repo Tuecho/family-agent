@@ -36,7 +36,7 @@ const ALL_TABLES = [
   'pet_tracker', 'pet_vaccines', 'pet_medications',
   'travel_manager', 'savings_pigs', 'savings_goals', 
   'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
-  'work_shifts', 'work_settings',
+  'work_shifts', 'work_settings', 'interesting_places', 'anniversaries',
   'password_reset_codes', 'app_settings', 'notification_settings',
   'faqs', 'suggestions', 'contact_messages', 'sales_contacts'
 ];
@@ -264,6 +264,8 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_utility_bills INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_family_library INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_extra_school INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_interesting_places INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_anniversaries INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
 
@@ -734,11 +736,16 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       owner_id INTEGER NOT NULL UNIQUE,
       daily_target_hours REAL DEFAULT 8,
       work_days TEXT DEFAULT '1,2,3,4,5',
+      weekly_target_hours REAL DEFAULT 40,
+      accumulated_hours REAL DEFAULT 0,
       alert_on_overtime INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  try { db.run(`ALTER TABLE work_settings ADD COLUMN weekly_target_hours REAL DEFAULT 40`); } catch(e) {}
+  try { db.run(`ALTER TABLE work_settings ADD COLUMN accumulated_hours REAL DEFAULT 0`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS internal_debts (
@@ -828,9 +835,36 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       budget REAL,
       flights_booked INTEGER DEFAULT 0,
       hotels_booked INTEGER DEFAULT 0,
-      activities_planned TEXT,
+      activities_planned INTEGER DEFAULT 0,
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS trip_members (
+      id TEXT PRIMARY KEY,
+      trip_id TEXT NOT NULL,
+      member_name TEXT NOT NULL,
+      checklist TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (trip_id) REFERENCES travel_manager(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS trip_activities (
+      id TEXT PRIMARY KEY,
+      trip_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      date TEXT,
+      time TEXT,
+      location TEXT,
+      notes TEXT,
+      cost REAL DEFAULT 0,
+      booked INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (trip_id) REFERENCES travel_manager(id) ON DELETE CASCADE
     )
   `);
 
@@ -859,6 +893,102 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       cost REAL,
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS anniversaries (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      type TEXT NOT NULL,
+      date TEXT NOT NULL,
+      notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS interesting_places (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      location TEXT,
+      category TEXT,
+      visit_date TEXT,
+      rating INTEGER DEFAULT 0,
+      notes TEXT,
+      image_url TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS household_chores (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      category TEXT DEFAULT 'general',
+      rotation_type TEXT DEFAULT 'weekly',
+      assigned_members TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS chore_assignments (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      chore_id TEXT NOT NULL,
+      member_id INTEGER NOT NULL,
+      week_start TEXT NOT NULL,
+      completed INTEGER DEFAULT 0,
+      completed_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (chore_id) REFERENCES household_chores(id),
+      FOREIGN KEY (member_id) REFERENCES family_members(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS family_rewards (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      description TEXT,
+      points_required INTEGER DEFAULT 0,
+      icon TEXT DEFAULT '🎁',
+      active INTEGER DEFAULT 1,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS reward_earnings (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      reward_id TEXT NOT NULL,
+      earned_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      redeemed INTEGER DEFAULT 0,
+      redeemed_at TEXT,
+      FOREIGN KEY (reward_id) REFERENCES family_rewards(id),
+      FOREIGN KEY (member_id) REFERENCES family_members(id)
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS member_points (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      member_id INTEGER NOT NULL,
+      total_points INTEGER DEFAULT 0,
+      week_points INTEGER DEFAULT 0,
+      week_start TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (member_id) REFERENCES family_members(id)
     )
   `);
 
@@ -2440,6 +2570,26 @@ app.delete('/api/finance/utility-bills/:id', (req, res) => {
   }
 });
 
+app.put('/api/finance/utility-bills/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { type, month, year, amount, consumption, notes } = req.body;
+  
+  try {
+    const consumptionValue = consumption ? (isNaN(Number(consumption)) ? null : Number(consumption)) : null;
+    const stmt = db.prepare('UPDATE utility_bills SET type = ?, month = ?, year = ?, amount = ?, consumption = ?, notes = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([type || 'luz', month, year, amount || 0, consumptionValue, notes || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ id, type, month, year, amount, consumption: consumptionValue, notes });
+  } catch (error) {
+    console.error('Error updating utility bill:', error);
+    res.status(500).json({ error: 'Error actualizando factura' });
+  }
+});
+
   const familyMembersStmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${dashboardIds.map(() => '?').join(',')}) ORDER BY owner_id, name`);
   familyMembersStmt.bind(dashboardIds);
   const familyMembers = [];
@@ -2534,7 +2684,7 @@ app.get('/api/weather', async (req, res) => {
     const { latitude, longitude } = geoData.results[0];
     
     const weatherResponse = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&timezone=auto`
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=2`
     );
     const weatherData = await weatherResponse.json();
     
@@ -2568,6 +2718,11 @@ app.get('/api/weather', async (req, res) => {
     const isRainy = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95].includes(weatherCode);
     const isSnowy = [71, 73, 75].includes(weatherCode);
     
+    const tomorrowCode = weatherData.daily?.weather_code?.[1];
+    const tomorrowMax = weatherData.daily?.temperature_2m_max?.[1];
+    const tomorrowMin = weatherData.daily?.temperature_2m_min?.[1];
+    const tomorrowDescription = weatherDescriptions[tomorrowCode] || 'Desconocido';
+    
     res.json({
       city,
       temperature: temp,
@@ -2575,7 +2730,13 @@ app.get('/api/weather', async (req, res) => {
       description,
       isRainy,
       isSnowy,
-      weatherCode
+      weatherCode,
+      tomorrow: {
+        temperatureMax: tomorrowMax,
+        temperatureMin: tomorrowMin,
+        description: tomorrowDescription,
+        weatherCode: tomorrowCode
+      }
     });
   } catch (error) {
     console.error('Weather API error:', error);
@@ -2919,6 +3080,16 @@ app.post('/api/import', (req, res) => {
         try {
           const stmt = db.prepare('INSERT INTO extra_school_manager (owner_id, name, activity, schedule, location, cost, notes) VALUES (?, ?, ?, ?, ?, ?, ?)');
           stmt.run([userId, e.name || '', e.activity || '', e.schedule || null, e.location || null, e.cost || null, e.notes || null]);
+          stmt.free();
+        } catch (e) {}
+      }
+    }
+    
+    if (data.interesting_places && Array.isArray(data.interesting_places)) {
+      for (const p of data.interesting_places) {
+        try {
+          const stmt = db.prepare('INSERT INTO interesting_places (owner_id, name, description, location, category, visit_date, rating, notes, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+          stmt.run([userId, p.name || '', p.description || '', p.location || '', p.category || '', p.visit_date || null, p.rating || 0, p.notes || '', p.image_url || '']);
           stmt.free();
         } catch (e) {}
       }
@@ -3313,7 +3484,7 @@ app.delete('/api/tasks/:id', (req, res) => {
   
   const { id } = req.params;
   
-  const checkStmt = db.prepare('SELECT owner_id, assigned_to_id, shopping_list_id FROM family_tasks WHERE id = ?');
+  const checkStmt = db.prepare('SELECT owner_id, assigned_to_id, shopping_list_id, is_family_task FROM family_tasks WHERE id = ?');
   checkStmt.bind([id]);
   let task = null;
   if (checkStmt.step()) task = checkStmt.getAsObject();
@@ -3322,6 +3493,11 @@ app.delete('/api/tasks/:id', (req, res) => {
   if (!task) return res.status(404).json({ error: 'Tarea no encontrada' });
   
   let canDelete = task.owner_id === userId || task.assigned_to_id === userId;
+  
+  if (!canDelete && task.is_family_task) {
+    const accessibleIds = getAccessibleUserIds(userId);
+    canDelete = accessibleIds.includes(task.owner_id);
+  }
   
   if (!canDelete && task.shopping_list_id) {
     const accessibleIds = getAccessibleUserIds(userId, 'share_shopping');
@@ -3770,14 +3946,14 @@ app.get('/api/finance/internal-debts', (req, res) => {
   const placeholders = accessibleIds.map(() => '?').join(',');
   
   const stmt = db.prepare(`
-    SELECT id, from_member_id, to_member_id, amount, description, created_at, settled_at,
+    SELECT internal_debts.id, from_member_id, to_member_id, amount, description, internal_debts.created_at, settled_at,
            fm_from.name as from_member, fm_to.name as to_member,
            CASE WHEN settled_at IS NOT NULL AND settled_at != '' THEN 1 ELSE 0 END as settled
     FROM internal_debts
     LEFT JOIN family_members fm_from ON internal_debts.from_member_id = fm_from.id
     LEFT JOIN family_members fm_to ON internal_debts.to_member_id = fm_to.id
     WHERE internal_debts.owner_id IN (${placeholders})
-    ORDER BY created_at DESC
+    ORDER BY internal_debts.created_at DESC
   `);
   stmt.bind(accessibleIds);
   const debts = [];
@@ -3989,10 +4165,10 @@ app.put('/api/work-settings', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { daily_target_hours, work_days, alert_on_overtime } = req.body;
+  const { daily_target_hours, work_days, weekly_target_hours, alert_on_overtime } = req.body;
   
-  db.run('UPDATE work_settings SET daily_target_hours = ?, work_days = ?, alert_on_overtime = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
-    [daily_target_hours || 2, work_days || '1,2,3,4,5', alert_on_overtime !== false ? 1 : 0, userId]);
+  db.run('UPDATE work_settings SET daily_target_hours = ?, work_days = ?, weekly_target_hours = ?, alert_on_overtime = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
+    [daily_target_hours || 2, work_days || '1,2,3,4,5', weekly_target_hours || 40, alert_on_overtime !== false ? 1 : 0, userId]);
   saveDb();
   res.json({ success: true });
 });
@@ -4009,6 +4185,60 @@ app.get('/api/work-hours/summary', (req, res) => {
   while (stmt.step()) summary.push(stmt.getAsObject());
   stmt.free();
   res.json(summary);
+});
+
+app.get('/api/work-hours/accumulated', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const settingsStmt = db.prepare('SELECT * FROM work_settings WHERE owner_id = ?');
+  settingsStmt.bind([userId]);
+  let settings = null;
+  if (settingsStmt.step()) settings = settingsStmt.getAsObject();
+  settingsStmt.free();
+  
+  const dailyTarget = settings?.daily_target_hours || 2;
+  const workDays = (settings?.work_days || '0,1,2,3,4,5,6').split(',');
+  const workDaysCount = workDays.length;
+  const weeklyTarget = dailyTarget * workDaysCount;
+  const currentAccumulated = settings?.accumulated_hours || 0;
+  
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+  const weekStart = monday.toISOString().split('T')[0];
+  
+  const weekStmt = db.prepare('SELECT SUM(hours_worked) as week_hours FROM work_shifts WHERE owner_id = ? AND date >= ? AND hours_worked IS NOT NULL');
+  weekStmt.bind([userId, weekStart]);
+  let weekHours = 0;
+  if (weekStmt.step()) {
+    weekHours = weekStmt.getAsObject().week_hours || 0;
+  }
+  weekStmt.free();
+  
+  const weekOvertime = Math.max(0, weekHours - weeklyTarget);
+  
+  const newAccumulated = Math.max(0, currentAccumulated + weekOvertime);
+  
+  res.json({
+    weekly_target: weeklyTarget,
+    week_hours: weekHours,
+    accumulated_hours: newAccumulated,
+    week_overtime: weekOvertime
+  });
+});
+
+app.post('/api/work-hours/update-accumulated', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { accumulated_hours } = req.body;
+  
+  db.run('UPDATE work_settings SET accumulated_hours = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
+    [accumulated_hours || 0, userId]);
+  saveDb();
+  res.json({ success: true, accumulated_hours });
 });
 
 app.post('/api/work-hours/send-email', async (req, res) => {
@@ -4277,6 +4507,435 @@ app.get('/api/habits/logs', (req, res) => {
   logsStmt.free();
   
   res.json({ habits, logs: logsMap, date: notificationStart });
+});
+
+app.get('/api/habits/export', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { from, to, category_id } = req.query;
+  const fromDate = from || new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0];
+  const toDate = to || new Date().toISOString().split('T')[0];
+  
+  let habitsQuery = 'SELECT * FROM habits WHERE owner_id = ?';
+  const habitsParams = [userId];
+  if (category_id) {
+    habitsQuery += ' AND category_id = ?';
+    habitsParams.push(String(category_id));
+  }
+  const habitsStmt = db.prepare(habitsQuery);
+  habitsStmt.bind(habitsParams);
+  const habits = [];
+  while (habitsStmt.step()) habits.push(habitsStmt.getAsObject());
+  habitsStmt.free();
+  
+  const logsStmt = db.prepare('SELECT * FROM habit_logs WHERE owner_id = ? AND date BETWEEN ? AND ? ORDER BY date');
+  logsStmt.bind([userId, fromDate, toDate]);
+  const logs = [];
+  while (logsStmt.step()) logs.push(logsStmt.getAsObject());
+  logsStmt.free();
+  
+  const habitMap = {};
+  habits.forEach(h => habitMap[h.id] = h);
+  
+  const dates = [];
+  const currentDate = new Date(fromDate);
+  const endDate = new Date(toDate);
+  while (currentDate <= endDate) {
+    dates.push(currentDate.toISOString().split('T')[0]);
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  let csv = 'Fecha,' + habits.map(h => `"${h.name}"`).join(',') + ',Total\n';
+  
+  dates.forEach(date => {
+    const dayLogs = logs.filter(l => l.date === date);
+    const completedCounts = {};
+    dayLogs.forEach(l => completedCounts[l.habit_id] = l.completed === 1);
+    
+    let row = date;
+    let totalCompleted = 0;
+    habits.forEach(h => {
+      const completed = completedCounts[h.id] ? 1 : 0;
+      row += ',' + completed;
+      if (completed) totalCompleted++;
+    });
+    row += ',' + totalCompleted;
+    csv += row + '\n';
+  });
+  
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="habitos_${fromDate}_${toDate}.csv"`);
+  res.send(csv);
+});
+
+app.post('/api/habits/send-email', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { email_to, from, to, category_id } = req.body;
+
+  try {
+    const settingsStmt = db.prepare('SELECT * FROM notification_settings WHERE owner_id = ?');
+    settingsStmt.bind([userId]);
+    let settings = null;
+    if (settingsStmt.step()) settings = settingsStmt.getAsObject();
+    settingsStmt.free();
+
+    if (!settings?.email_enabled || !settings?.smtp_user || !settings?.smtp_password) {
+      return res.status(400).json({ error: 'Email no configurado. Configura las notificaciones en tu perfil.' });
+    }
+
+    const targetEmail = email_to || settings.email_to;
+    if (!targetEmail) {
+      return res.status(400).json({ error: 'No hay email de destino configurado.' });
+    }
+
+    const profileStmt = db.prepare('SELECT * FROM user_profile WHERE owner_id = ?');
+    profileStmt.bind([userId]);
+    let profile = { name: 'Usuario', family_name: 'Mi Familia' };
+    if (profileStmt.step()) profile = profileStmt.getAsObject();
+    profileStmt.free();
+
+    const fromDate = from || new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0];
+    const toDate = to || new Date().toISOString().split('T')[0];
+
+    const categoriesStmt = db.prepare('SELECT * FROM habit_categories WHERE owner_id = ?');
+    categoriesStmt.bind([userId]);
+    const categories = [];
+    while (categoriesStmt.step()) categories.push(categoriesStmt.getAsObject());
+    categoriesStmt.free();
+
+    let habitsQuery = 'SELECT * FROM habits WHERE owner_id = ?';
+    const habitsParams = [userId];
+    if (category_id) {
+      habitsQuery += ' AND category_id = ?';
+      habitsParams.push(category_id);
+    }
+    const habitsStmt = db.prepare(habitsQuery);
+    habitsStmt.bind(habitsParams);
+    const habits = [];
+    while (habitsStmt.step()) habits.push(habitsStmt.getAsObject());
+    habitsStmt.free();
+
+    const logsStmt = db.prepare('SELECT * FROM habit_logs WHERE owner_id = ? AND date BETWEEN ? AND ? ORDER BY date');
+    logsStmt.bind([userId, fromDate, toDate]);
+    const logs = [];
+    while (logsStmt.step()) logs.push(logsStmt.getAsObject());
+    logsStmt.free();
+
+    const dates = [];
+    const currentDate = new Date(fromDate);
+    const endDate = new Date(toDate);
+    while (currentDate <= endDate) {
+      dates.push(currentDate.toISOString().split('T')[0]);
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    const habitsWithoutCategory = habits.filter(h => !h.category_id);
+    let habitsByCategory = categories.map(cat => ({
+      ...cat,
+      habits: habits.filter(h => h.category_id === cat.id)
+    }));
+    
+    if (category_id) {
+      habitsByCategory = habitsByCategory.filter(cat => cat.id === category_id);
+    }
+
+    const getHabitStatusForDate = (habitId, date) => {
+      const log = logs.find(l => l.habit_id === habitId && l.date === date);
+      return log && log.completed === 1;
+    };
+
+    const getHabitRecurrenceDays = (habit) => {
+      const recurrence = habit.recurrence;
+      const specificDays = habit.specific_days;
+      
+      switch (recurrence) {
+        case 'daily': return [0, 1, 2, 3, 4, 5, 6];
+        case 'weekdays': return [1, 2, 3, 4, 5];
+        case 'weekends': return [0, 6];
+        case 'weekly':
+        case 'biweekly':
+          if (specificDays) {
+            try {
+              return JSON.parse(specificDays);
+            } catch {
+              return [];
+            }
+          }
+          return [];
+        case 'specific':
+          if (specificDays) {
+            try {
+              return JSON.parse(specificDays);
+            } catch {
+              return [];
+            }
+          }
+          return [];
+        default: return [0, 1, 2, 3, 4, 5, 6];
+      }
+    };
+
+    const isHabitActiveOnDate = (habit, dateStr) => {
+      const date = new Date(dateStr);
+      const dayOfWeek = date.getDay();
+      const recurrenceDays = getHabitRecurrenceDays(habit);
+      return recurrenceDays.includes(dayOfWeek);
+    };
+
+    const formatDate = (dateStr) => {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString('es-ES', { weekday: 'short', day: 'numeric', month: 'short' });
+    };
+
+    const transporter = nodemailer.createTransport({
+      host: settings.smtp_host || 'smtp.gmail.com',
+      port: settings.smtp_port || 587,
+      secure: false,
+      auth: {
+        user: settings.smtp_user,
+        pass: settings.smtp_password
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    });
+
+    const totalCompleted = logs.filter(l => l.completed === 1).length;
+    let totalPossible = 0;
+    habits.forEach(h => {
+      const activeDates = dates.filter(d => isHabitActiveOnDate(h, d));
+      totalPossible += activeDates.length;
+    });
+    const overallPercentage = totalPossible > 0 ? Math.round((totalCompleted / totalPossible) * 100) : 0;
+
+    const getDateStyles = (dateStr) => {
+      const date = new Date(dateStr);
+      const dayOfWeek = date.getDay();
+      if (dayOfWeek === 0) return { bg: '#fef3c7', border: '#fcd34d' };
+      if (dayOfWeek === 6) return { bg: '#dbeafe', border: '#93c5fd' };
+      return { bg: '#ffffff', border: '#ddd' };
+    };
+
+    const dateHeadersShort = dates.map(d => {
+      const styles = getDateStyles(d);
+      const dayNum = d.split('-')[2];
+      const date = new Date(d);
+      const dayOfWeek = date.getDay();
+      const dayInitials = ['D', 'L', 'M', 'X', 'J', 'V', 'S'];
+      const dayInit = dayInitials[dayOfWeek];
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+      return `<th style="padding: 4px; font-size: 10px; text-align: center; border: 1px solid ${styles.border}; background: ${styles.bg}; ${isWeekend ? 'font-weight: bold;' : ''}">${dayInit}${dayNum}</th>`;
+    }).join('');
+
+    const generateCategoryTable = (catHabits, categoryName, categoryColor) => {
+      if (catHabits.length === 0) return '';
+      
+      let catCompleted = 0;
+      let catTotal = 0;
+      catHabits.forEach(h => {
+        const activeDates = dates.filter(d => isHabitActiveOnDate(h, d));
+        const hLogs = logs.filter(l => l.habit_id === h.id && l.completed === 1);
+        catCompleted += hLogs.length;
+        catTotal += activeDates.length;
+      });
+      const catPct = catTotal > 0 ? Math.round((catCompleted / catTotal) * 100) : 0;
+
+      const rows = catHabits.map(h => {
+        const hLogs = logs.filter(l => l.habit_id === h.id);
+        const completed = hLogs.filter(l => l.completed === 1).length;
+        const activeDates = dates.filter(d => isHabitActiveOnDate(h, d));
+        const total = activeDates.length;
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+        
+        const dayCells = dates.map(d => {
+          const isActive = isHabitActiveOnDate(h, d);
+          if (!isActive) {
+            return `<td style="padding: 4px; text-align: center; border: 1px solid #eee; background: #f9fafb; color: #9ca3af;">-</td>`;
+          }
+          const done = getHabitStatusForDate(h.id, d);
+          const styles = getDateStyles(d);
+          return `<td style="padding: 4px; text-align: center; border: 1px solid ${styles.border}; background: ${done ? '#dcfce7' : styles.bg}; color: ${done ? '#166534' : '#991b1b'}; font-weight: bold;">${done ? '✓' : '✗'}</td>`;
+        }).join('');
+
+        return `<tr style="background: white;">
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: 500;">${h.name}</td>
+          ${dayCells}
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${completed}/${total}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd; font-weight: bold; color: ${pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444'};">${pct}%</td>
+        </tr>`;
+      }).join('');
+
+      return `
+      <div style="margin-bottom: 30px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+          <div style="width: 16px; height: 16px; border-radius: 50%; background: ${categoryColor || '#22c55e'};"></div>
+          <h3 style="margin: 0; color: #333; font-size: 18px;">${categoryName}</h3>
+          <span style="background: ${categoryColor || '#22c55e'}20; color: ${categoryColor || '#22c55e'}; padding: 2px 10px; border-radius: 12px; font-size: 14px; font-weight: bold;">${catPct}%</span>
+        </div>
+        <div style="overflow-x: auto; border: 1px solid #ddd; border-radius: 8px;">
+          <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+            <thead>
+              <tr style="background: #f8f9fa;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; background: ${categoryColor || '#22c55e'}10;">Hábito</th>
+                ${dateHeadersShort}
+                <th style="padding: 10px; text-align: center; border: 1px solid #ddd; background: ${categoryColor || '#22c55e'}10;">Hecho</th>
+                <th style="padding: 10px; text-align: center; border: 1px solid #ddd; background: ${categoryColor || '#22c55e'}10;">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    };
+
+    const generateNoCategoryTable = (noCatHabits) => {
+      if (noCatHabits.length === 0) return '';
+      
+      let catCompleted = 0;
+      let catTotal = 0;
+      noCatHabits.forEach(h => {
+        const activeDates = dates.filter(d => isHabitActiveOnDate(h, d));
+        const hLogs = logs.filter(l => l.habit_id === h.id && l.completed === 1);
+        catCompleted += hLogs.length;
+        catTotal += activeDates.length;
+      });
+      const catPct = catTotal > 0 ? Math.round((catCompleted / catTotal) * 100) : 0;
+
+      const rows = noCatHabits.map(h => {
+        const hLogs = logs.filter(l => l.habit_id === h.id);
+        const completed = hLogs.filter(l => l.completed === 1).length;
+        const activeDates = dates.filter(d => isHabitActiveOnDate(h, d));
+        const total = activeDates.length;
+        const pct = total > 0 ? Math.round((completed / total) * 100) : 0;
+        
+        const dayCells = dates.map(d => {
+          const isActive = isHabitActiveOnDate(h, d);
+          if (!isActive) {
+            return `<td style="padding: 4px; text-align: center; border: 1px solid #eee; background: #f9fafb; color: #9ca3af;">-</td>`;
+          }
+          const done = getHabitStatusForDate(h.id, d);
+          const styles = getDateStyles(d);
+          return `<td style="padding: 4px; text-align: center; border: 1px solid ${styles.border}; background: ${done ? '#dcfce7' : styles.bg}; color: ${done ? '#166534' : '#991b1b'}; font-weight: bold;">${done ? '✓' : '✗'}</td>`;
+        }).join('');
+
+        return `<tr style="background: white;">
+          <td style="padding: 8px; border: 1px solid #ddd; font-weight: 500;">${h.name}</td>
+          ${dayCells}
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd; font-weight: bold;">${completed}/${total}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd; font-weight: bold; color: ${pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444'};">${pct}%</td>
+        </tr>`;
+      }).join('');
+
+      return `
+      <div style="margin-bottom: 30px;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+          <h3 style="margin: 0; color: #333; font-size: 18px;">Sin Categoría</h3>
+          <span style="background: #6b728020; color: #6b7280; padding: 2px 10px; border-radius: 12px; font-size: 14px; font-weight: bold;">${catPct}%</span>
+        </div>
+        <div style="overflow-x: auto; border: 1px solid #ddd; border-radius: 8px;">
+          <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+            <thead>
+              <tr style="background: #f8f9fa;">
+                <th style="padding: 10px; text-align: left; border: 1px solid #ddd; background: #f3f4f6;">Hábito</th>
+                ${dateHeadersShort}
+                <th style="padding: 10px; text-align: center; border: 1px solid #ddd; background: #f3f4f6;">Hecho</th>
+                <th style="padding: 10px; text-align: center; border: 1px solid #ddd; background: #f3f4f6;">%</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+    };
+
+    let categoryTables = '';
+    habitsByCategory.forEach(cat => {
+      categoryTables += generateCategoryTable(cat.habits, cat.name, cat.color);
+    });
+    categoryTables += generateNoCategoryTable(habitsWithoutCategory);
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Estadísticas de Hábitos</title>
+</head>
+<body style="font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5;">
+  <div style="max-width: 900px; margin: 0 auto; background: white;">
+    <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; text-align: center;">
+      <h1 style="color: white; margin: 0; font-size: 24px;">📋 Estadísticas de Hábitos</h1>
+      <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 14px;">Family Agent</p>
+    </div>
+    
+    <div style="padding: 30px;">
+      <p style="font-size: 18px; color: #333; margin: 0 0 20px 0;">¡Hola <strong>${profile.family_name || 'Familia'}</strong>! 👋</p>
+      
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-bottom: 30px;">
+        <h3 style="margin: 0 0 15px 0; color: #333;">📅 Período: ${fromDate} al ${toDate}</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <tr>
+            <td style="padding: 10px; text-align: center; background: white; border-radius: 8px; margin: 4px;">
+              <div style="font-size: 24px; font-weight: bold; color: #22c55e;">${dates.length}</div>
+              <div style="font-size: 12px; color: #666;">Días</div>
+            </td>
+            <td style="padding: 10px; text-align: center; background: white; border-radius: 8px; margin: 4px;">
+              <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${habits.length}</div>
+              <div style="font-size: 12px; color: #666;">Hábitos</div>
+            </td>
+            <td style="padding: 10px; text-align: center; background: white; border-radius: 8px; margin: 4px;">
+              <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;">${totalCompleted}</div>
+              <div style="font-size: 12px; color: #666;">Completados</div>
+            </td>
+            <td style="padding: 10px; text-align: center; background: white; border-radius: 8px; margin: 4px;">
+              <div style="font-size: 24px; font-weight: bold; color: #ef4444;">${totalPossible - totalCompleted}</div>
+              <div style="font-size: 12px; color: #666;">Pendientes</div>
+            </td>
+            <td style="padding: 10px; text-align: center; background: white; border-radius: 8px; margin: 4px;">
+              <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${overallPercentage}%</div>
+              <div style="font-size: 12px; color: #666;">Cumplimiento</div>
+            </td>
+          </tr>
+        </table>
+      </div>
+      
+      <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+        <p style="margin: 0; font-size: 13px; color: #92400e;">
+          <strong>📊 Leyenda:</strong> ✓ = Completado | ✗ = No completado | - = Hábito no programado ese día | % = Porcentaje de cumplimiento (sobre días programados)<br/>
+          <strong>🎨 Colores:</strong> Amarillo = Domingo | Azul = Sábado
+        </p>
+      </div>
+      
+      ${categoryTables || '<p style="text-align: center; color: #666;">No hay hábitos configurados.</p>'}
+      
+      <p style="font-size: 14px; color: #666; margin-top: 30px; text-align: center;">
+        Este email fue generado automáticamente por Family Agent.
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await transporter.sendMail({
+      from: `"Family Agent" <${settings.smtp_user}>`,
+      to: targetEmail,
+      subject: `📋 Resumen de Hábitos - ${fromDate} al ${toDate} (${overallPercentage}% cumplimiento)`,
+      html: htmlContent
+    });
+
+    console.log(`Habits email sent to ${targetEmail}`);
+    res.json({ success: true, message: 'Email enviado correctamente' });
+  } catch (error) {
+    console.error('Error sending habits email:', error);
+    res.status(500).json({ error: 'Error enviando email: ' + error.message });
+  }
 });
 
 app.get('/api/home/maintenance', (req, res) => {
@@ -4918,15 +5577,20 @@ app.post('/api/reset', (req, res) => {
   const tablesToDelete = ALL_TABLES.filter(t => !tablesToKeep.includes(t));
   
   const customDeleteQueries = {
-    'user_shares': 'owner_id = ? OR shared_with_id = ?',
-    'invitations': 'from_user_id = ?'
+    'user_shares': { sql: 'owner_id = ? OR shared_with_id = ?', params: 2 },
+    'invitations': { sql: 'from_user_id = ?', params: 1 },
+    'password_reset_codes': { sql: 'username = (SELECT username FROM auth_user WHERE id = ?)', params: 1 },
+    'app_settings': { sql: '1=1', params: 0 },
+    'faqs': { sql: '1=1', params: 0 }
   };
   
   try {
     for (const table of tablesToDelete) {
       try {
         if (customDeleteQueries[table]) {
-          db.run(`DELETE FROM ${table} WHERE ${customDeleteQueries[table]}`, [userId, userId]);
+          const { sql, params } = customDeleteQueries[table];
+          const queryParams = params > 0 ? (params === 2 ? [userId, userId] : [userId]) : [];
+          db.run(`DELETE FROM ${table} WHERE ${sql}`, queryParams);
         } else if (table === 'pet_tracker') {
           db.run(`DELETE FROM pet_medications WHERE pet_id IN (SELECT id FROM pet_tracker WHERE owner_id = ?)`);
           db.run(`DELETE FROM pet_vaccines WHERE pet_id IN (SELECT id FROM pet_tracker WHERE owner_id = ?)`);
@@ -6071,7 +6735,7 @@ Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
 - Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], startDateParam = null, endDateParam = null) {
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], startDateParam = null, endDateParam = null) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
     return { success: false, reason: 'Email notifications not configured' };
   }
@@ -6148,6 +6812,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const hasTasks = notifyTasks && tasks.length > 0;
   const hasMealPlans = notifyMeals && mealPlans && mealPlans.length > 0;
   const hasBirthdays = notifyBirthdays && birthdays && birthdays.length > 0;
+  const hasMaintenance = maintenanceTasks && maintenanceTasks.length > 0;
 
   let budgetsSection = '';
   let budgetsText = '';
@@ -6155,6 +6820,8 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   let tasksText = '';
   let birthdaysSection = '';
   let birthdaysText = '';
+  let maintenanceSection = '';
+  let maintenanceText = '';
   if (hasBudgets) {
     const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
@@ -6300,12 +6967,42 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     `;
   }
 
+  if (hasMaintenance) {
+    maintenanceText = `🏠 MANTENIMIENTO DEL HOGAR\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      maintenanceTasks.map(t => {
+        const daysText = t.daysUntilDue <= 0 ? 'VENCIDO' : (t.daysUntilDue === 1 ? '1 día' : `${t.daysUntilDue} días`);
+        const emoji = t.daysUntilDue <= 7 ? '🔴' : (t.daysUntilDue <= 30 ? '🟡' : '🟢');
+        return `${emoji} ${t.name}: ${daysText}`;
+      }).join('\n');
+
+    maintenanceSection = `
+      <div style="background: #ecfdf5; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <h3 style="margin: 0 0 16px 0; color: #065f46;">🏠 Mantenimiento del Hogar</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tbody>
+            ${maintenanceTasks.map(t => {
+              const daysText = t.daysUntilDue <= 0 ? 'VENCIDO' : (t.daysUntilDue === 1 ? '1 día' : `${t.daysUntilDue} días`);
+              const textColor = t.daysUntilDue <= 7 ? '#dc2626' : (t.daysUntilDue <= 30 ? '#d97706' : '#059669');
+              return `
+                <tr style="border-bottom: 1px solid #a7f3d0;">
+                  <td style="padding: 10px 0;">🏠</td>
+                  <td style="padding: 10px 0; color: #111827;">${t.name}</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${textColor};">${daysText}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   // Remove previous definition 
   
   const dateRangeStr = `${notificationStart.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${notificationEnd.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   if (!hasEvents) {
-    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\nNo hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
+    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\n${weatherText ? weatherText + '\n\n' : ''}No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n${maintenanceText ? '\n\n' + maintenanceText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nCon cari\u00f1o,\nFamily Agent 💕`;
     htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -6317,9 +7014,10 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${headerHtml}
     ${greetingHtml}
     ${quoteHtml}
+    ${weatherSection}
     <div style="padding: 20px;">
       <p style="color: #666; font-size: 14px; margin: 0 0 20px 0;">No hay planes para los próximos 7 días (${dateRangeStr}).</p>
-      ${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}
+      ${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${maintenanceSection}
     </div>
     ${footerHtml}
   </div>
@@ -6366,7 +7064,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
       return `📅 ${dayName}\n  🕐 ${time}\n  ${type}${e.title}${location}`;
     }).join('\n\n');
 
-    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\nTienes ${events.length} plan${events.length > 1 ? 'es' : ''} para los próximos 7 días (${dateRangeStr}):\n\n${eventsText}\n${tasksText ? '\n\n' + tasksText : ''}${budgetsText ? '\n\n' + budgetsText : ''}${mealPlansText ? '\n\n' + mealPlansText : ''}${birthdaysText ? '\n\n' + birthdaysText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
+    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\n${weatherText ? weatherText + '\n\n' : ''}Tienes ${events.length} plan${events.length > 1 ? 'es' : ''} para los próximos 7 días (${dateRangeStr}):\n\n${eventsText}\n${tasksText ? '\n\n' + tasksText : ''}${budgetsText ? '\n\n' + budgetsText : ''}${mealPlansText ? '\n\n' + mealPlansText : ''}${birthdaysText ? '\n\n' + birthdaysText : ''}${maintenanceText ? '\n\n' + maintenanceText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
 
     htmlContent = `<!DOCTYPE html>
 <html>
@@ -6379,8 +7077,9 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${headerHtml}
     ${greetingHtml}
     ${quoteHtml}
+    ${weatherSection}
     <div style="padding: 20px;">
-      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}
+      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${maintenanceSection}
     </div>
     ${footerHtml}
   </div>
@@ -6716,7 +7415,33 @@ async function sendUserNotification(userId) {
         return a.daysUntil - b.daysUntil;
       });
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, tomorrow, nextWeek);
+    // Fetch home maintenance tasks (within 100 days)
+    const accessibleMaintenanceIds = getAccessibleUserIds(userId, 'share_home_maintenance');
+    const maintenancePlaceholders = accessibleMaintenanceIds.map(() => '?').join(',');
+    const maintenanceStmt = db.prepare(`SELECT * FROM home_maintenance WHERE owner_id IN (${maintenancePlaceholders})`);
+    maintenanceStmt.bind(accessibleMaintenanceIds);
+    const allMaintenanceTasks = [];
+    while (maintenanceStmt.step()) {
+      allMaintenanceTasks.push(maintenanceStmt.getAsObject());
+    }
+    maintenanceStmt.free();
+
+    const maintenanceTasks = allMaintenanceTasks
+      .map(task => {
+        if (!task.last_completed) {
+          return { ...task, daysUntilDue: 0 };
+        }
+        const lastCompleted = new Date(task.last_completed);
+        const nextDue = new Date(lastCompleted);
+        nextDue.setDate(nextDue.getDate() + (task.frequency_days || 365));
+        const today = new Date();
+        const daysUntil = Math.ceil((nextDue - today) / (1000 * 60 * 60 * 24));
+        return { ...task, daysUntilDue: daysUntil, nextDueDate: nextDue.toISOString().split('T')[0] };
+      })
+      .filter(task => task.daysUntilDue < 100)
+      .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
+
+    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, maintenanceTasks, tomorrow, nextWeek);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
   }
@@ -8079,6 +8804,132 @@ app.delete('/api/extra-school/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/interesting-places', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_interesting_places');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM interesting_places WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
+  const places = [];
+  while (stmt.step()) places.push(stmt.getAsObject());
+  stmt.free();
+  res.json(places);
+});
+
+app.post('/api/interesting-places', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, description, location, category, visit_date, rating, notes, image_url } = req.body;
+  const id = crypto.randomUUID();
+  
+  try {
+    const stmt = db.prepare('INSERT INTO interesting_places (id, owner_id, name, description, location, category, visit_date, rating, notes, image_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, name, description || null, location || null, category || null, visit_date || null, rating || 0, notes || null, image_url || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    console.error('Error creating interesting place:', error);
+    res.status(500).json({ error: 'Error creando lugar de interés' });
+  }
+});
+
+app.put('/api/interesting-places/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, description, location, category, visit_date, rating, notes, image_url } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE interesting_places SET name = ?, description = ?, location = ?, category = ?, visit_date = ?, rating = ?, notes = ?, image_url = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([name, description || null, location || null, category || null, visit_date || null, rating || 0, notes || null, image_url || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating interesting place:', error);
+    res.status(500).json({ error: 'Error actualizando lugar de interés' });
+  }
+});
+
+
+app.get('/api/anniversaries', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const accessibleIds = getAccessibleUserIds(userId, 'share_anniversaries');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const stmt = db.prepare(`SELECT * FROM anniversaries WHERE owner_id IN (${placeholders}) ORDER BY created_at DESC`);
+  stmt.bind(accessibleIds);
+  const data = [];
+  while (stmt.step()) data.push(stmt.getAsObject());
+  stmt.free();
+  res.json(data);
+});
+
+app.post('/api/anniversaries', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { title, type, date, notes } = req.body;
+  const id = crypto.randomUUID();
+  try {
+    const stmt = db.prepare('INSERT INTO anniversaries (id, owner_id, title, type, date, notes) VALUES (?, ?, ?, ?, ?, ?)');
+    stmt.run([id, userId, title, type || 'otro', date || null, notes || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id, success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error agregando' });
+  }
+});
+
+app.put('/api/anniversaries/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { title, type, date, notes } = req.body;
+  try {
+    const stmt = db.prepare('UPDATE anniversaries SET title = ?, type = ?, date = ?, notes = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([title, type || 'otro', date || null, notes || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error actualizando' });
+  }
+});
+
+app.delete('/api/anniversaries/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  try {
+    db.run('DELETE FROM anniversaries WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error borrando' });
+  }
+});
+
+app.delete('/api/interesting-places/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  try {
+    db.run('DELETE FROM interesting_places WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting interesting place:', error);
+    res.status(500).json({ error: 'Error eliminando lugar de interés' });
+  }
+});
+
 app.get('/api/family/trips', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -8125,6 +8976,117 @@ app.delete('/api/family/trips/:id', (req, res) => {
   
   const { id } = req.params;
   db.run('DELETE FROM travel_manager WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/family/trips/members', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare(`
+    SELECT tm.* FROM trip_members tm
+    JOIN travel_manager t ON t.id = tm.trip_id
+    WHERE t.owner_id = ?
+    ORDER BY tm.member_name
+  `);
+  stmt.bind([userId]);
+  const members = [];
+  while (stmt.step()) {
+    const m = stmt.getAsObject();
+    m.checklist = m.checklist ? JSON.parse(m.checklist) : [];
+    members.push(m);
+  }
+  stmt.free();
+  res.json(members);
+});
+
+app.post('/api/family/trips/members', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { trip_id, member_name, checklist } = req.body;
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO trip_members (id, trip_id, member_name, checklist) VALUES (?, ?, ?, ?)');
+  stmt.run([id, trip_id, member_name, JSON.stringify(checklist || [])]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.put('/api/family/trips/members/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { member_name, checklist } = req.body;
+  const stmt = db.prepare('UPDATE trip_members SET member_name = ?, checklist = ? WHERE id = ?');
+  stmt.run([member_name || null, checklist ? JSON.stringify(checklist) : '[]', id]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/family/trips/members/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM trip_members WHERE id = ?', [id]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/family/trips/activities/:tripId', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { tripId } = req.params;
+  const stmt = db.prepare(`
+    SELECT ta.* FROM trip_activities ta
+    JOIN travel_manager t ON t.id = ta.trip_id
+    WHERE ta.trip_id = ? AND t.owner_id = ?
+    ORDER BY ta.date, ta.time
+  `);
+  stmt.bind([tripId, userId]);
+  const activities = [];
+  while (stmt.step()) activities.push(stmt.getAsObject());
+  stmt.free();
+  res.json(activities);
+});
+
+app.post('/api/family/trips/activities', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { trip_id, name, date, time, location, notes, cost, booked } = req.body;
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO trip_activities (id, trip_id, name, date, time, location, notes, cost, booked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, trip_id, name, date || null, time || null, location || null, notes || null, cost || 0, booked ? 1 : 0]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.put('/api/family/trips/activities/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, date, time, location, notes, cost, booked } = req.body;
+  const stmt = db.prepare('UPDATE trip_activities SET name = ?, date = ?, time = ?, location = ?, notes = ?, cost = ?, booked = ? WHERE id = ?');
+  stmt.run([name, date || null, time || null, location || null, notes || null, cost || 0, booked ? 1 : 0, id]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/family/trips/activities/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM trip_activities WHERE id = ?', [id]);
   saveDb();
   res.json({ success: true });
 });
@@ -8285,6 +9247,293 @@ app.post('/api/family/pets/medications', (req, res) => {
   stmt.free();
   saveDb();
   res.json({ id, success: true });
+});
+
+app.get('/api/family/household-chores', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM household_chores WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const chores = [];
+  while (stmt.step()) {
+    const chore = stmt.getAsObject();
+    if (chore.assigned_members) {
+      chore.assigned_members = JSON.parse(chore.assigned_members);
+    }
+    chores.push(chore);
+  }
+  stmt.free();
+  res.json(chores);
+});
+
+app.post('/api/family/household-chores', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, description, category, rotation_type, assigned_members } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const id = crypto.randomUUID();
+  const membersJson = assigned_members ? JSON.stringify(assigned_members) : null;
+  const stmt = db.prepare('INSERT INTO household_chores (id, owner_id, name, description, category, rotation_type, assigned_members) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, name, description || null, category || 'general', rotation_type || 'weekly', membersJson]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.put('/api/family/household-chores/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, description, category, rotation_type, assigned_members } = req.body;
+  
+  const membersJson = assigned_members ? JSON.stringify(assigned_members) : null;
+  const stmt = db.prepare('UPDATE household_chores SET name = ?, description = ?, category = ?, rotation_type = ?, assigned_members = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, description || null, category || 'general', rotation_type || 'weekly', membersJson, id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/family/household-chores/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM chore_assignments WHERE chore_id = ?', [id]);
+  db.run('DELETE FROM household_chores WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/family/chore-assignments', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { week_start } = req.query;
+  const stmt = db.prepare(`
+    SELECT ca.*, hc.name as chore_name, fm.name as member_name
+    FROM chore_assignments ca
+    JOIN household_chores hc ON ca.chore_id = hc.id
+    LEFT JOIN family_members fm ON ca.member_id = fm.id
+    WHERE ca.owner_id = ? ${week_start ? 'AND ca.week_start = ?' : ''}
+    ORDER BY ca.week_start DESC, hc.name
+  `);
+  stmt.bind(week_start ? [userId, week_start] : [userId]);
+  const assignments = [];
+  while (stmt.step()) assignments.push(stmt.getAsObject());
+  stmt.free();
+  res.json(assignments);
+});
+
+app.post('/api/family/chore-assignments/:id/complete', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { member_id, points } = req.body;
+  
+  db.run('UPDATE chore_assignments SET completed = 1, completed_at = ? WHERE id = ? AND owner_id = ?', 
+    [new Date().toISOString(), id, userId]);
+  
+  if (member_id && points) {
+    const existingStmt = db.prepare('SELECT * FROM member_points WHERE owner_id = ? AND member_id = ?');
+    existingStmt.bind([userId, member_id]);
+    if (existingStmt.step()) {
+      db.run('UPDATE member_points SET total_points = total_points + ?, week_points = week_points + ? WHERE owner_id = ? AND member_id = ?', 
+        [points, points, userId, member_id]);
+    } else {
+      db.run('INSERT INTO member_points (id, owner_id, member_id, total_points, week_points, week_start) VALUES (?, ?, ?, ?, ?, ?)', 
+        [crypto.randomUUID(), userId, member_id, points, points, new Date().toISOString().split('T')[0] ]);
+    }
+    existingStmt.free();
+  }
+  
+  saveDb();
+  res.json({ success: true });
+});
+
+app.post('/api/family/chore-assignments/rotate', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { chore_id, week_start } = req.body;
+  const weekStart = week_start || new Date().toISOString().split('T')[0];
+  
+  const choreStmt = db.prepare('SELECT * FROM household_chores WHERE id = ? AND owner_id = ?');
+  choreStmt.bind([chore_id, userId]);
+  if (!choreStmt.step()) {
+    choreStmt.free();
+    return res.status(404).json({ error: 'Tarea no encontrada' });
+  }
+  const chore = choreStmt.getAsObject();
+  choreStmt.free();
+  
+  let members = [];
+  if (chore.assigned_members) {
+    try {
+      members = JSON.parse(chore.assigned_members);
+    } catch (e) {
+      members = [];
+    }
+  }
+  
+  const lastAssignmentStmt = db.prepare(`
+    SELECT member_id FROM chore_assignments 
+    WHERE chore_id = ? AND owner_id = ? 
+    ORDER BY week_start DESC LIMIT 1
+  `);
+  lastAssignmentStmt.bind([chore_id, userId]);
+  let lastMemberId = null;
+  if (lastAssignmentStmt.step()) {
+    lastMemberId = lastAssignmentStmt.getAsObject().member_id;
+  }
+  lastAssignmentStmt.free();
+  
+  let nextMemberId = lastMemberId;
+  if (members.length > 0) {
+    const currentIndex = lastMemberId ? members.indexOf(lastMemberId) : -1;
+    nextMemberId = members[(currentIndex + 1) % members.length];
+  }
+  
+  if (nextMemberId) {
+    const id = crypto.randomUUID();
+    const stmt = db.prepare('INSERT INTO chore_assignments (id, owner_id, chore_id, member_id, week_start) VALUES (?, ?, ?, ?, ?)');
+    stmt.run([id, userId, chore_id, nextMemberId, weekStart]);
+    stmt.free();
+    saveDb();
+  }
+  
+  res.json({ success: true, next_member_id: nextMemberId });
+});
+
+app.get('/api/family/rewards', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM family_rewards WHERE owner_id = ? AND active = 1 ORDER BY points_required');
+  stmt.bind([userId]);
+  const rewards = [];
+  while (stmt.step()) rewards.push(stmt.getAsObject());
+  stmt.free();
+  res.json(rewards);
+});
+
+app.post('/api/family/rewards', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, description, points_required, icon } = req.body;
+  if (!name) return res.status(400).json({ error: 'El nombre es obligatorio' });
+  
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO family_rewards (id, owner_id, name, description, points_required, icon) VALUES (?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, name, description || null, points_required || 0, icon || '🎁']);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.delete('/api/family/rewards/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM reward_earnings WHERE reward_id = ?', [id]);
+  db.run('DELETE FROM family_rewards WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/family/member-points', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare(`
+    SELECT mp.*, fm.name as member_name
+    FROM member_points mp
+    LEFT JOIN family_members fm ON mp.member_id = fm.id
+    WHERE mp.owner_id = ?
+    ORDER BY mp.total_points DESC
+  `);
+  stmt.bind([userId]);
+  const points = [];
+  while (stmt.step()) points.push(stmt.getAsObject());
+  stmt.free();
+  res.json(points);
+});
+
+app.post('/api/family/member-points/:memberId/redeem', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { memberId } = req.params;
+  const { reward_id } = req.body;
+  
+  const rewardStmt = db.prepare('SELECT * FROM family_rewards WHERE id = ? AND owner_id = ?');
+  rewardStmt.bind([reward_id, userId]);
+  if (!rewardStmt.step()) {
+    rewardStmt.free();
+    return res.status(404).json({ error: 'Recompensa no encontrada' });
+  }
+  const reward = rewardStmt.getAsObject();
+  rewardStmt.free();
+  
+  const pointsStmt = db.prepare('SELECT * FROM member_points WHERE owner_id = ? AND member_id = ?');
+  pointsStmt.bind([userId, memberId]);
+  if (!pointsStmt.step()) {
+    pointsStmt.free();
+    return res.status(400).json({ error: 'El miembro no tiene puntos' });
+  }
+  const memberPoints = pointsStmt.getAsObject();
+  pointsStmt.free();
+  
+  if (memberPoints.total_points < reward.points_required) {
+    return res.status(400).json({ error: 'Puntos insuficientes' });
+  }
+  
+  db.run('UPDATE member_points SET total_points = total_points - ? WHERE owner_id = ? AND member_id = ?', 
+    [reward.points_required, userId, memberId]);
+  
+  const id = crypto.randomUUID();
+  const earnStmt = db.prepare('INSERT INTO reward_earnings (id, owner_id, member_id, reward_id) VALUES (?, ?, ?, ?)');
+  earnStmt.run([id, userId, memberId, reward_id]);
+  earnStmt.free();
+  
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/family/rewards/earned', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { member_id } = req.query;
+  let query = `
+    SELECT re.*, fr.name as reward_name, fr.icon as reward_icon, fm.name as member_name
+    FROM reward_earnings re
+    JOIN family_rewards fr ON re.reward_id = fr.id
+    LEFT JOIN family_members fm ON re.member_id = fm.id
+    WHERE re.owner_id = ?
+  `;
+  const params = [userId];
+  
+  if (member_id) {
+    query += ' AND re.member_id = ?';
+    params.push(member_id);
+  }
+  
+  query += ' ORDER BY re.earned_at DESC';
+  
+  const stmt = db.prepare(query);
+  stmt.bind(params);
+  const earnings = [];
+  while (stmt.step()) earnings.push(stmt.getAsObject());
+  stmt.free();
+  res.json(earnings);
 });
 
 app.listen(PORT, () => {

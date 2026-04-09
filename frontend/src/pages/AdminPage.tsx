@@ -551,7 +551,7 @@ export function AdminPage() {
         >
           <Users size={16} className="inline mr-1 md:mr-2" />
           <span className="hidden sm:inline">Usuarios</span>
-          <span className="sm:hidden text-xs">Usu</span>
+          <span className="sm:hidden text-xs">User</span>
         </button>
         <button
           onClick={() => setActiveTab('suggestions')}

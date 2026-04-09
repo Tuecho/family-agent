@@ -36,6 +36,15 @@ export interface FamilyEvent {
   recurrence_start_date?: string;
 }
 
+export interface Anniversary {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  notes?: string;
+  created_at?: string;
+}
+
 export interface Restaurant {
   id: string;
   owner_id: number;
@@ -134,6 +143,18 @@ export interface TripMember {
   trip_id: string;
   member_name: string;
   checklist: { item: string; packed: boolean }[];
+}
+
+export interface TripActivity {
+  id: string;
+  trip_id: string;
+  name: string;
+  date?: string;
+  time?: string;
+  location?: string;
+  notes?: string;
+  cost?: number;
+  booked?: boolean;
 }
 
 export interface SavingsPig {

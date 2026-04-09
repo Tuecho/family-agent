@@ -22,3 +22,10 @@ export function formatTime24(timeHHMM?: string) {
   return `${h.toString().padStart(2, '0')}:${m}`;
 }
 
+export function formatDateEsLower(date: Date, options?: { day?: 'numeric' | '2-digit'; month?: 'numeric' | '2-digit' | 'long' | 'short'; year?: 'numeric' | '2-digit'; weekday?: 'long' | 'short' }) {
+  const finalOptions = options || { day: 'numeric', month: 'long', year: 'numeric' };
+  
+  const str = date.toLocaleDateString('es-ES', finalOptions);
+  return str.replace(/\s+[A-Z]/g, (match) => match.toLowerCase());
+}
+

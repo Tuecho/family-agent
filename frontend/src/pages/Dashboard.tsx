@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake, Eye, EyeOff } from 'lucide-react';
+import { TrendingUp, TrendingDown, Wallet, Loader2, ChevronLeft, ChevronRight, Target, Heart, Home, ListChecks, Calendar, AlertCircle, Cake, Eye, EyeOff, CloudRain, Snowflake, Sun, CheckCircle2, Gift } from 'lucide-react';
 import { useStore } from '../store';
-import { formatMoneyEs } from '../utils/format';
+import { formatMoneyEs, formatDateEsLower } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -594,7 +594,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   useEffect(() => {
     const today = new Date();
     const todayDay = today.getDate();
-    const todayMonth = today.toLocaleDateString('es-ES', { month: 'long' });
+    const todayMonth = formatDateEsLower(today, { month: 'long' });
     const todayStr = today.toISOString().split('T')[0];
     
     const tomorrow = new Date();
@@ -673,8 +673,8 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const isCurrentMonth = () => selectedMonth === today.getMonth() + 1 && selectedYear === today.getFullYear();
   
   const monthLabel = isCurrentMonth()
-    ? today.toLocaleDateString('es-ES', { day: 'numeric', month: 'long' }) + ' de ' + today.getFullYear()
-    : new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+    ? formatDateEsLower(today, { day: 'numeric', month: 'long', year: 'numeric' })
+    : formatDateEsLower(new Date(selectedYear, selectedMonth - 1, 1), { month: 'long', year: 'numeric' });
 
   const changeMonth = (delta: number) => {
     const d = new Date(selectedYear, selectedMonth - 1, 1);
@@ -689,45 +689,52 @@ export function Dashboard({ onNavigate }: DashboardProps) {
 
   const currentDate = new Date();
   const currentDay = currentDate.getDate();
-  const currentDayMonth = currentDate.toLocaleDateString('es-ES', { month: 'long' });
+  const currentDayMonth = formatDateEsLower(currentDate, { month: 'long' });
   const tomorrowDate = new Date();
   tomorrowDate.setDate(tomorrowDate.getDate() + 1);
   const tomorrowDayNum = tomorrowDate.getDate();
-  const tomorrowMonthStr = tomorrowDate.toLocaleDateString('es-ES', { month: 'long' });
+  const tomorrowMonthStr = formatDateEsLower(tomorrowDate, { month: 'long' });
 
   return (
-    <div className="p-3 sm:p-4 md:p-8">
+    <div className="p-3 sm:p-4 md:p-8 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 sm:mb-6">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Dashboard</h2>
+          <h2 className="text-xl sm:text-2xl font-extrabold text-slate-800 tracking-tight">Dashboard</h2>
           {weather && (
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-2xl">
-                {weather.isRainy ? '🌧️' : weather.isSnowy ? '❄️' : '☀️'}
-              </span>
-              <span className="font-medium text-gray-700">
+            <div className="flex items-center gap-2 mt-1.5">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-100 to-orange-100 flex items-center justify-center">
+                {weather.isRainy ? (
+                  <CloudRain size={16} className="text-blue-500" />
+                ) : weather.isSnowy ? (
+                  <Snowflake size={16} className="text-cyan-500" />
+                ) : (
+                  <Sun size={16} className="text-amber-500" />
+                )}
+              </div>
+              <span className="font-semibold text-slate-700">
                 {weather.temperature}°C
               </span>
               {weather.apparentTemperature && (
-                <span className="text-gray-400 text-sm">
+                <span className="text-slate-400 text-sm">
                   (sensación {weather.apparentTemperature}°C)
                 </span>
               )}
-              <span className="text-gray-500 text-sm">
-                {weather.city} - {weather.description}
+              <span className="text-slate-500 text-sm">
+                {weather.city} · {weather.description}
               </span>
             </div>
           )}
           {weatherError && (
-            <p className="text-xs text-gray-400 mt-1">
-              {weatherError} - <button onClick={() => onNavigate?.('profile')} className="text-primary hover:underline">Configurar ciudad</button>
+            <p className="text-xs text-slate-400 mt-1">
+              {weatherError} — <button onClick={() => onNavigate?.('profile')} className="text-primary hover:underline font-medium">Configurar ciudad</button>
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 sm:gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <button
             onClick={() => setShowFinancialData(!showFinancialData)}
-            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors flex items-center gap-1 text-xs sm:text-sm"
+            className="p-2 rounded-xl glass hover:shadow-card transition-all duration-200 flex items-center gap-1.5 text-xs sm:text-sm text-slate-600"
             title={showFinancialData ? "Ocultar datos económicos" : "Mostrar datos económicos"}
           >
             {showFinancialData ? <Eye size={16} /> : <EyeOff size={16} />}
@@ -735,17 +742,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
           </button>
           <button
             onClick={() => changeMonth(-1)}
-            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            className="p-2 rounded-xl glass hover:shadow-card transition-all duration-200"
             title="Mes anterior"
           >
             <ChevronLeft size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
-          <span className="px-2 sm:px-4 py-2 font-semibold text-gray-700 capitalize min-w-[110px] sm:min-w-[140px] text-center text-sm sm:text-base">
+          <span className="px-2 sm:px-4 py-2 font-semibold text-slate-700 min-w-[110px] sm:min-w-[140px] text-center text-sm sm:text-base">
             {monthLabel}
           </span>
           <button
             onClick={() => changeMonth(1)}
-            className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+            className="p-2 rounded-xl glass hover:shadow-card transition-all duration-200"
             title="Mes siguiente"
           >
             <ChevronRight size={16} className="sm:w-[18px] sm:h-[18px]" />
@@ -756,7 +763,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 const now = new Date();
                 setSelectedMonthYear(now.getMonth() + 1, now.getFullYear());
               }}
-              className="px-2 sm:px-3 py-2 rounded-lg border border-primary text-primary text-xs sm:text-sm hover:bg-primary/5 transition-colors"
+              className="px-2.5 sm:px-3 py-2 rounded-xl bg-primary/10 text-primary text-xs sm:text-sm hover:bg-primary/15 transition-all font-semibold"
             >
               Hoy
             </button>
@@ -770,72 +777,76 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       )}
 
-      <div className="mb-4 sm:mb-6">
-        <div className="text-center py-3 sm:py-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 rounded-xl border border-amber-200 mb-4">
-          <p className="text-sm sm:text-base text-gray-700 italic px-4">
+      {/* Quote + Family banner */}
+      <div className="mb-4 sm:mb-6 space-y-3">
+        <div className="text-center py-3.5 sm:py-4 card-modern px-4">
+          <p className="text-sm sm:text-base text-slate-600 italic leading-relaxed">
             "{dailyQuote}"
           </p>
         </div>
-        <div className="text-center py-4 sm:py-6 bg-gradient-to-r from-primary/10 via-pink-50 to-primary/10 rounded-xl sm:rounded-2xl">
+        <div className="text-center py-4 sm:py-6 card-modern bg-gradient-to-r from-primary/5 via-purple-500/5 to-pink-500/5">
           <div className="inline-flex items-center gap-2 sm:gap-3">
-            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
+            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={20} />
             <div>
-              <h2 className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-primary to-pink-500 bg-clip-text text-transparent">
-                🏠 {profile.family_name}
+              <h2 className="text-lg sm:text-2xl font-extrabold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
+                {profile.family_name}
               </h2>
-              <p className="text-gray-500 mt-1 text-xs sm:text-sm">
-                💰 Gestionando los asuntos familiares con <span className="font-semibold text-primary">Family Agent</span> 💖
+              <p className="text-slate-500 mt-1 text-xs sm:text-sm">
+                Gestionando los asuntos familiares con <span className="font-semibold text-primary">Family Agent</span>
               </p>
             </div>
-            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={24} />
+            <Heart className="text-pink-500 animate-pulse hidden sm:block" size={20} />
           </div>
         </div>
       </div>
       
+      {/* Financial summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
         {showFinancialData ? (
           <>
-            <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-income/10 flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="text-income" size={20} />
+            <div className="card-modern p-4 sm:p-5 flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                <TrendingUp className="text-white" size={20} />
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-500">Ingresos</p>
-                <p className="text-lg sm:text-2xl font-bold text-income truncate">{formatMoneyEs(totals.income)}</p>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium">Ingresos</p>
+                <p className="text-lg sm:text-2xl font-bold text-emerald-600 truncate">{formatMoneyEs(totals.income)}</p>
               </div>
             </div>
             
-            <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-full bg-expense/10 flex items-center justify-center flex-shrink-0">
-                <TrendingDown className="text-expense" size={20} />
+            <div className="card-modern p-4 sm:p-5 flex items-center gap-3">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-rose-400 to-rose-500 flex items-center justify-center flex-shrink-0 shadow-md">
+                <TrendingDown className="text-white" size={20} />
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-500">Gastos</p>
-                <p className="text-lg sm:text-2xl font-bold text-expense truncate">{formatMoneyEs(totals.expense)}</p>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium">Gastos</p>
+                <p className="text-lg sm:text-2xl font-bold text-rose-600 truncate">{formatMoneyEs(totals.expense)}</p>
               </div>
             </div>
             
-            <div className="bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center gap-3 sm:col-span-1 col-span-1">
-              <div className={`w-10 h-10 sm:w-14 sm:h-14 rounded-full flex items-center justify-center flex-shrink-0 ${
-                totals.balance >= 0 ? 'bg-income/10' : 'bg-expense/10'
+            <div className="card-modern p-4 sm:p-5 flex items-center gap-3">
+              <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md ${
+                totals.balance >= 0 
+                  ? 'bg-gradient-to-br from-emerald-400 to-teal-500' 
+                  : 'bg-gradient-to-br from-rose-400 to-red-500'
               }`}>
-                <Wallet className={totals.balance >= 0 ? 'text-income' : 'text-expense'} size={20} />
+                <Wallet className="text-white" size={20} />
               </div>
               <div className="min-w-0">
-                <p className="text-xs sm:text-sm text-gray-500">Balance</p>
-                <p className={`text-lg sm:text-2xl font-bold truncate ${totals.balance >= 0 ? 'text-income' : 'text-expense'}`}>
+                <p className="text-xs sm:text-sm text-slate-500 font-medium">Balance</p>
+                <p className={`text-lg sm:text-2xl font-bold truncate ${totals.balance >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {formatMoneyEs(totals.balance)}
                 </p>
               </div>
             </div>
           </>
         ) : (
-          <div className="col-span-1 sm:col-span-3 bg-white rounded-xl p-4 sm:p-5 shadow-sm border border-gray-100 flex items-center justify-center gap-3">
-            <EyeOff className="text-gray-400" size={24} />
-            <p className="text-gray-500 text-sm">Datos económicos ocultos</p>
+          <div className="col-span-1 sm:col-span-3 card-modern p-4 sm:p-5 flex items-center justify-center gap-3">
+            <EyeOff className="text-slate-400" size={20} />
+            <p className="text-slate-500 text-sm">Datos económicos ocultos</p>
             <button 
               onClick={() => setShowFinancialData(true)}
-              className="text-primary hover:underline text-sm"
+              className="text-primary hover:underline text-sm font-semibold"
             >
               Mostrar
             </button>
@@ -843,151 +854,171 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         )}
       </div>
 
+      {/* Plans grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <div className="card-modern p-4 sm:p-6">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Calendar size={20} className="text-green-500" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+              <Calendar size={16} className="text-emerald-600" />
+            </div>
             Planes para hoy ({currentDay} de {currentDayMonth})
           </h3>
           {plansLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-slate-400" size={24} />
             </div>
           ) : todayPlans.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">📅</span>
-              <p className="text-gray-500 text-sm">No hay planes para hoy</p>
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Calendar size={20} className="text-slate-400" />
+              </div>
+              <p className="text-slate-500 text-sm">No hay planes para hoy</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {todayPlans.map((plan) => (
-                <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                <div key={plan.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors">
+                  <div className={`w-2 h-8 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-emerald-500' : 'bg-purple-500'}`}></div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{plan.title}</p>
                     {plan.start_time && (
-                      <p className="text-xs text-gray-400">
-                        {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
+                      <p className="text-xs text-slate-400">
+                        {plan.start_time}{plan.end_time ? ` — ${plan.end_time}` : ''}
                       </p>
                     )}
                   </div>
                   {plan.location && (
-                    <span className="text-xs text-gray-400 truncate max-w-[100px]">{plan.location}</span>
+                    <span className="text-xs text-slate-400 truncate max-w-[100px]">{plan.location}</span>
                   )}
                 </div>
               ))}
             </div>
           )}
           {todayPlans.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{todayPlans.length} plan{ todayPlans.length !== 1 ? 'es' : ''} para hoy</p>
+            <p className="text-xs text-slate-400 mt-3 text-center font-medium">{todayPlans.length} plan{ todayPlans.length !== 1 ? 'es' : ''} para hoy</p>
           )}
         </div>
         
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <div className="card-modern p-4 sm:p-6">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Calendar size={20} className="text-purple-500" />
+            <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+              <Calendar size={16} className="text-purple-600" />
+            </div>
             Planes para mañana ({tomorrowDayNum} de {tomorrowMonthStr})
           </h3>
           {plansLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-slate-400" size={24} />
             </div>
           ) : tomorrowPlans.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">📅</span>
-              <p className="text-gray-500 text-sm">No hay planes para mañana</p>
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                <Calendar size={20} className="text-slate-400" />
+              </div>
+              <p className="text-slate-500 text-sm">No hay planes para mañana</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {tomorrowPlans.map((plan) => (
-                <div key={plan.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-green-500' : 'bg-purple-500'}`}></div>
+                <div key={plan.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors">
+                  <div className={`w-2 h-8 rounded-full ${plan.type === 'work' ? 'bg-blue-500' : plan.type === 'family' ? 'bg-emerald-500' : 'bg-purple-500'}`}></div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{plan.title}</p>
                     {plan.start_time && (
-                      <p className="text-xs text-gray-400">
-                        {plan.start_time}{plan.end_time ? ` - ${plan.end_time}` : ''}
+                      <p className="text-xs text-slate-400">
+                        {plan.start_time}{plan.end_time ? ` — ${plan.end_time}` : ''}
                       </p>
                     )}
                   </div>
                   {plan.location && (
-                    <span className="text-xs text-gray-400 truncate max-w-[100px]">{plan.location}</span>
+                    <span className="text-xs text-slate-400 truncate max-w-[100px]">{plan.location}</span>
                   )}
                 </div>
               ))}
             </div>
           )}
           {tomorrowPlans.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{tomorrowPlans.length} plan{ tomorrowPlans.length !== 1 ? 'es' : ''} para mañana</p>
+            <p className="text-xs text-slate-400 mt-3 text-center font-medium">{tomorrowPlans.length} plan{ tomorrowPlans.length !== 1 ? 'es' : ''} para mañana</p>
           )}
         </div>
       </div>
 
+      {/* Tasks + Birthdays grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 mb-4 sm:mb-6">
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <div className="card-modern p-4 sm:p-6">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <ListChecks size={20} className="text-orange-500" />
+            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
+              <ListChecks size={16} className="text-amber-600" />
+            </div>
             Tareas Pendientes
           </h3>
           {tasksLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-slate-400" size={24} />
             </div>
           ) : pendingTasks.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">✅</span>
-              <p className="text-gray-500 text-sm">No hay tareas pendientes</p>
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+                <CheckCircle2 size={20} className="text-emerald-500" />
+              </div>
+              <p className="text-slate-500 text-sm">No hay tareas pendientes</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-64 overflow-y-auto">
               {pendingTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 border border-gray-100">
-                  <div className={`w-2 h-2 rounded-full ${task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500' : task.priority === 'normal' ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+                <div key={task.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 border border-slate-100 transition-colors">
+                  <div className={`w-2 h-8 rounded-full ${task.priority === 'high' || task.priority === 'urgent' ? 'bg-red-500' : task.priority === 'normal' ? 'bg-amber-500' : 'bg-slate-300'}`}></div>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{task.title}</p>
                     {task.due_date && (
-                      <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-gray-400'}`}>
+                      <p className={`text-xs flex items-center gap-1 ${new Date(task.due_date) < new Date() ? 'text-red-500' : 'text-slate-400'}`}>
                         <Calendar size={12} />
-                        {new Date(task.due_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                        {formatDateEsLower(new Date(task.due_date), { day: 'numeric', month: 'short' })}
                       </p>
                     )}
                   </div>
                   {task.assignee_name && (
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{task.assignee_name}</span>
+                    <span className="text-xs bg-primary/10 text-primary px-2.5 py-1 rounded-full font-medium">{task.assignee_name}</span>
                   )}
                 </div>
               ))}
             </div>
           )}
           {pendingTasks.length > 0 && (
-            <p className="text-xs text-gray-400 mt-2 text-center">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
+            <p className="text-xs text-slate-400 mt-3 text-center font-medium">{pendingTasks.length} tarea{pendingTasks.length !== 1 ? 's' : ''} pendiente{pendingTasks.length !== 1 ? 's' : ''}</p>
           )}
         </div>
         
-        <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+        <div className="card-modern p-4 sm:p-6">
           <h3 className="text-base sm:text-lg font-semibold mb-4 flex items-center gap-2">
-            <Cake size={20} className="text-pink-500" />
+            <div className="w-8 h-8 rounded-lg bg-pink-100 flex items-center justify-center">
+              <Cake size={16} className="text-pink-600" />
+            </div>
             Cumpleaños del mes
           </h3>
           {birthdaysLoading ? (
             <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin text-gray-400" size={24} />
+              <Loader2 className="animate-spin text-slate-400" size={24} />
             </div>
           ) : monthBirthdays.length === 0 ? (
             <div className="text-center py-8">
-              <span className="text-4xl mb-2 block">🎂</span>
-              <p className="text-gray-500 text-sm">No hay cumpleaños este mes</p>
+              <div className="w-12 h-12 rounded-2xl bg-pink-100 flex items-center justify-center mx-auto mb-3">
+                <Cake size={20} className="text-pink-400" />
+              </div>
+              <p className="text-slate-500 text-sm">No hay cumpleaños este mes</p>
             </div>
           ) : (
             <div className="space-y-2">
               {monthBirthdays.map((b: any) => (
-                <div key={b.id} className="flex items-center gap-3 p-2 rounded-lg bg-pink-50 border border-pink-100">
-                  <span className="text-2xl">🎂</span>
+                <div key={b.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-gradient-to-r from-pink-50 to-purple-50 border border-pink-100">
+                  <div className="w-8 h-8 rounded-lg bg-pink-200/60 flex items-center justify-center">
+                    <Gift size={14} className="text-pink-600" />
+                  </div>
                   <div className="flex-1">
                     <p className="font-medium text-sm">{b.name}</p>
-                    <p className="text-xs text-gray-500">{b.day} de {new Date(b.birthdate).toLocaleDateString('es-ES', { month: 'long' })}</p>
+                    <p className="text-xs text-slate-500">{b.day} de {formatDateEsLower(new Date(b.birthdate), { month: 'long' })}</p>
                   </div>
-                  <span className="text-xs bg-pink-200 text-pink-700 px-2 py-0.5 rounded-full">
+                  <span className="text-xs bg-pink-200/60 text-pink-700 px-2.5 py-1 rounded-full font-medium">
                     {b.age} años
                   </span>
                 </div>
@@ -997,19 +1028,24 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </div>
       </div>
 
+      {/* Budgets + Monthly Trends */}
       {showFinancialData && (
         <>
-          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100">
+          <div className="card-modern p-4 sm:p-6">
             <div className="flex items-center gap-2 mb-4 sm:mb-6">
-              <Target className="text-primary sm:w-6 sm:h-6" size={20} />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Target className="text-primary" size={16} />
+              </div>
               <h3 className="text-base sm:text-lg font-semibold">Presupuestos del Mes</h3>
             </div>
             
             {currentMonthBudgets.length === 0 ? (
               <div className="text-center py-8 sm:py-12">
-                <span className="text-4xl sm:text-5xl mb-4 block">🎯</span>
-                <p className="text-gray-500 mb-2 text-sm">No hay presupuestos establecidos</p>
-                <p className="text-xs sm:text-sm text-gray-400">Ve a Presupuestos para crear uno</p>
+                <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4">
+                  <Target size={24} className="text-slate-400" />
+                </div>
+                <p className="text-slate-500 mb-2 text-sm">No hay presupuestos establecidos</p>
+                <p className="text-xs sm:text-sm text-slate-400">Ve a Presupuestos para crear uno</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-3">
@@ -1020,9 +1056,11 @@ export function Dashboard({ onNavigate }: DashboardProps) {
             )}
           </div>
 
-          <div className="bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-gray-100 mt-3 sm:mt-6">
+          <div className="card-modern p-4 sm:p-6 mt-3 sm:mt-6">
             <div className="flex items-center gap-2 mb-4">
-              <TrendingUp className="text-primary sm:w-6 sm:h-6" size={20} />
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                <TrendingUp className="text-primary" size={16} />
+              </div>
               <h3 className="text-base sm:text-lg font-semibold">Evolución (6 meses)</h3>
             </div>
             <MonthlyTrendCards data={monthlyData} />
@@ -1030,18 +1068,21 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         </>
       )}
 
-      <footer className="mt-8 sm:mt-12 pt-4 sm:pt-8 border-t border-gray-200">
-        <div className="text-center text-gray-500 text-xs sm:text-sm">
+      {/* Footer */}
+      <footer className="mt-8 sm:mt-12 pt-4 sm:pt-8">
+        <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent mb-6" />
+        <div className="text-center text-slate-500 text-xs sm:text-sm">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Home size={14} className="text-primary" />
-            <span className="font-semibold text-gray-700">Family Agent</span>
+            <span className="font-semibold text-slate-700">Family Agent</span>
           </div>
           <p className="mb-1">© {new Date().getFullYear()} Family Agent</p>
-          <p className="text-xs text-gray-400">
-            Hecho con <span className="text-red-500">❤</span> para las familias
+          <p className="text-xs text-slate-400">
+            Hecho con <Heart size={10} className="inline text-red-500 fill-red-500" /> para las familias
           </p>
         </div>
       </footer>
     </div>
   );
 }
+

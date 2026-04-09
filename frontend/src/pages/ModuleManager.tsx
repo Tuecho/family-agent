@@ -35,9 +35,12 @@ const MODULE_LIST = [
   { key: 'accounting', label: 'Contabilidad', icon: '💰' },
   { key: 'budgets', label: 'Presupuestos', icon: '📊' },
   { key: 'work_hours', label: 'Horas Trabajo', icon: '⏰' },
+  { key: 'interesting_places', label: 'Lugares de Interés', icon: '📍' },
+  { key: 'family_organization', label: 'Org. Familiar', icon: '👨‍👩‍👧‍👦' },
+  { key: 'anniversaries', label: 'Aniversarios', icon: '🗓️' },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
-const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'habits', 'shopping', 'notes', 'tasks'];
+const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'anniversaries', 'habits', 'shopping', 'notes', 'tasks'];
 
 export function ModuleManager() {
   const [enabledModules, setEnabledModules] = useState<string[]>(DEFAULT_MODULES);

@@ -11,6 +11,7 @@ import { FamilyTasks } from './pages/FamilyTasks';
 import { Notes } from './pages/Notes';
 import { MealPlanning } from './pages/MealPlanning';
 import { Birthdays } from './pages/Birthdays';
+import Anniversaries from './pages/Anniversaries';
 import { BooksMovies } from './pages/BooksMovies';
 import { AdminPage } from './pages/AdminPage';
 import { About } from './pages/About';
@@ -37,11 +38,13 @@ import { ExtraSchoolManager } from './pages/ExtraSchoolManager';
 import { HabitTracker } from './pages/HabitTracker';
 import { ModuleManager } from './pages/ModuleManager';
 import { WorkHours } from './pages/WorkHours';
+import { SitesOfInterest } from './pages/SitesOfInterest';
+import { FamilyOrganization } from './pages/FamilyOrganization';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -90,25 +93,27 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
+    <div className="min-h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       {isMobileMenuOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 lg:hidden transition-opacity duration-300"
           onClick={() => setIsMobileMenuOpen(false)}
         />
       )}
       
+      {/* Mobile menu button */}
       <div className="lg:hidden fixed top-3 left-3 z-50 flex gap-2">
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="bg-primary text-white p-2.5 rounded-lg shadow-lg active:bg-primary/90"
+          className="glass-strong text-slate-700 p-2.5 rounded-xl shadow-soft active:scale-95 transition-all duration-200"
         >
           {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
       </div>
 
+      {/* Desktop sidebar */}
       <div
-        className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 hidden lg:block fixed inset-y-0 left-0 transition-transform duration-200 z-50`}
+        className={`${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 hidden lg:block fixed inset-y-0 left-0 transition-transform duration-300 ease-out z-50`}
         onMouseEnter={() => setIsSidebarHovered(true)}
         onMouseLeave={() => setIsSidebarHovered(false)}
       >
@@ -120,8 +125,9 @@ function AppContent() {
         />
       </div>
 
+      {/* Mobile sidebar */}
       {isMobileMenuOpen && (
-        <div className="lg:hidden fixed inset-y-0 left-0 z-50 w-64">
+        <div className="lg:hidden fixed inset-y-0 left-0 z-50 w-64 animate-slide-in-left">
           <Sidebar 
             activePage={activePage} 
             onNavigate={handleNavigate} 
@@ -132,8 +138,9 @@ function AppContent() {
         </div>
       )}
       
-      <main className={`transition-all duration-200 pt-14 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0 min-h-screen`}>
-        <div className="p-2 sm:p-4 md:p-6 max-w-7xl mx-auto overflow-x-hidden">
+      {/* Main content */}
+      <main className={`transition-all duration-300 ease-out pt-14 lg:pt-0 ${isSidebarHovered ? 'lg:ml-60' : 'lg:ml-16'} ml-0 min-h-screen`}>
+        <div className="p-2 sm:p-4 md:p-6 max-w-7xl mx-auto overflow-x-hidden page-enter">
           {activePage === 'dashboard' && <Dashboard onNavigate={handleNavigate} />}
           {activePage === 'accounting' && <Accounting />}
           {activePage === 'budgets' && <Budgets />}
@@ -145,6 +152,7 @@ function AppContent() {
           {activePage === 'notes' && <Notes />}
           {activePage === 'meals' && <MealPlanning />}
           {activePage === 'birthdays' && <Birthdays />}
+          {activePage === 'anniversaries' && <Anniversaries />}
           {activePage === 'books_movies' && <BooksMovies />}
           {activePage === 'admin' && isAdmin && <AdminPage />}
           {activePage === 'about' && <About />}
@@ -171,6 +179,7 @@ function AppContent() {
           {activePage === 'extra_school' && <ExtraSchoolManager />}
           {activePage === 'modules' && <ModuleManager />}
           {activePage === 'work_hours' && <WorkHours />}
+          {activePage === 'interesting_places' && <SitesOfInterest />}
         </div>
       </main>
 

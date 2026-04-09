@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, Pencil, RefreshCw, Copy, ArrowRight, ChevronLeft, ChevronRight, Upload, X, Check, AlertCircle } from 'lucide-react';
 import { useStore } from '../store';
 import type { ExpenseConceptItem } from '../types';
-import { formatMoneyEs } from '../utils/format';
+import { formatMoneyEs, formatDateEsLower } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -363,7 +363,7 @@ export function Budgets() {
 
   const sortedBudgets = [...budgets].sort((a, b) => b.percentage - a.percentage);
 
-  const monthLabel = new Date(selectedYear, selectedMonth - 1, 1).toLocaleDateString('es-ES', {
+  const monthLabel = formatDateEsLower(new Date(selectedYear, selectedMonth - 1, 1), {
     month: 'long',
     year: 'numeric'
   });
@@ -392,7 +392,7 @@ export function Budgets() {
             >
               <ChevronLeft size={18} />
             </button>
-            <span className="px-2 font-medium text-gray-600 capitalize text-sm">
+            <span className="px-2 font-medium text-gray-600 text-sm">
               {monthLabel}
             </span>
             <button

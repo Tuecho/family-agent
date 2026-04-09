@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Check, Edit2, Trash2, ArrowLeft, ArrowRight, Target, Pill, Apple, BookOpen, Dumbbell, Moon, Coffee, Heart, Clock, Folder, ChevronDown, ChevronRight, X, FolderPlus, Cross, Languages, Music, Sparkles, Code, Briefcase, Utensils, Footprints, Smile, Users, Baby, Dog, Cat, Palette, GraduationCap, Laptop, UtensilsCrossed, HeartHandshake } from 'lucide-react';
+import { Plus, Check, Edit2, Trash2, ArrowLeft, ArrowRight, Target, Pill, Apple, BookOpen, Dumbbell, Moon, Coffee, Heart, Clock, Folder, ChevronDown, ChevronRight, X, FolderPlus, Cross, Languages, Music, Sparkles, Code, Briefcase, Utensils, Footprints, Smile, Users, Baby, Dog, Cat, Palette, GraduationCap, Laptop, UtensilsCrossed, HeartHandshake, Download, Mail, Send } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
+import { formatDateEsLower } from '../utils/format';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -71,6 +72,7 @@ const RECURRENCE_OPTIONS = [
   { key: 'weekends', label: 'Fines de semana' },
   { key: 'weekly', label: 'Una vez a la semana' },
   { key: 'biweekly', label: 'Cada 2 semanas' },
+  { key: 'monthly', label: 'Una vez al mes' },
   { key: 'specific', label: 'Días específicos' },
 ];
 
@@ -92,6 +94,7 @@ function getDaysOfWeek(recurrence: string, specificDays?: string | null): number
     case 'specific': 
     case 'weekly':
     case 'biweekly':
+    case 'monthly':
       if (specificDays) {
         try {
           return JSON.parse(specificDays);
@@ -107,7 +110,8 @@ function getDaysOfWeek(recurrence: string, specificDays?: string | null): number
 function shouldShowHabitToday(habit: Habit, checkDate?: Date): boolean {
   const dateToCheck = checkDate || new Date();
   const dayOfWeek = dateToCheck.getDay();
-  console.log('[shouldShowHabitToday] habit:', habit.name, 'recurrence:', habit.recurrence, 'specific_days:', habit.specific_days, 'checkDate:', dateToCheck.toDateString(), 'dayOfWeek (0=Dom,6=Sáb):', dayOfWeek);
+  const dayOfMonth = dateToCheck.getDate();
+  console.log('[shouldShowHabitToday] habit:', habit.name, 'recurrence:', habit.recurrence, 'specific_days:', habit.specific_days, 'checkDate:', dateToCheck.toDateString(), 'dayOfWeek (0=Dom,6=Sáb):', dayOfWeek, 'dayOfMonth:', dayOfMonth);
   const days = getDaysOfWeek(habit.recurrence, habit.specific_days);
   console.log('[shouldShowHabitToday] days:', days, 'includes dayOfWeek:', days.includes(dayOfWeek), 'days.length:', days.length);
   
@@ -123,6 +127,12 @@ function shouldShowHabitToday(habit: Habit, checkDate?: Date): boolean {
     const isEvenWeek = weeksDiff % 2 === 0;
     const result = days.length > 0 && days.includes(dayOfWeek) && isEvenWeek;
     console.log('[shouldShowHabitToday] biweekly check:', { startDate: habit.start_date, diffDays, weeksDiff, isEvenWeek, result });
+    return result;
+  }
+
+  if (habit.recurrence === 'monthly') {
+    const result = days.length > 0 && days.includes(dayOfMonth);
+    console.log('[shouldShowHabitToday] monthly check:', { dayOfMonth, days, result });
     return result;
   }
   
@@ -142,6 +152,14 @@ export function HabitTracker() {
   const [editingCategory, setEditingCategory] = useState<HabitCategory | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
   const [showMoveMenu, setShowMoveMenu] = useState<number | null>(null);
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportRange, setExportRange] = useState<{ from: string; to: string }>({
+    from: new Date(new Date().setDate(new Date().getDate() - 7)).toISOString().split('T')[0],
+    to: new Date().toISOString().split('T')[0]
+  });
+  const [exportCategory, setExportCategory] = useState<number | null>(null);
+  const [exportEmail, setExportEmail] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -203,15 +221,74 @@ export function HabitTracker() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams({
+        from: exportRange.from,
+        to: exportRange.to
+      });
+      if (exportCategory !== null) {
+        params.append('category_id', exportCategory.toString());
+      }
+      const response = await fetch(`${API_URL}/api/habits/export?${params}`, {
+        headers: getAuthHeaders()
+      });
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `habitos_${exportRange.from}_${exportRange.to}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setShowExportModal(false);
+    } catch (err) {
+      console.error('Error exporting:', err);
+    }
+  };
+
+  const handleSendEmail = async () => {
+    if (!exportEmail && !confirm('No has ingresado un email personalizado. ¿Enviar al email configurado en notificaciones?')) {
+      return;
+    }
+    setSendingEmail(true);
+    try {
+      const response = await fetch(`${API_URL}/api/habits/send-email`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: exportRange.from,
+          to: exportRange.to,
+          category_id: exportCategory,
+          email_to: exportEmail || undefined
+        })
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Error al enviar email');
+      } else {
+        alert('Email enviado correctamente');
+        setShowExportModal(false);
+        setExportEmail('');
+      }
+    } catch (err) {
+      console.error('Error sending email:', err);
+      alert('Error al enviar email');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('[HabitTracker] Submitting habit:', formData);
     try {
       let specificDaysValue: string | null = null;
-      if (formData.recurrence === 'weekly' || formData.recurrence === 'biweekly') {
+      if (formData.recurrence === 'weekly' || formData.recurrence === 'biweekly' || formData.recurrence === 'monthly') {
         specificDaysValue = formData.specific_days && formData.specific_days.length > 0 
           ? JSON.stringify(formData.specific_days) 
-          : '[0]';
+          : '[1]';
       } else if (formData.recurrence === 'specific' && formData.specific_days && formData.specific_days.length > 0) {
         specificDaysValue = JSON.stringify(formData.specific_days);
       }
@@ -398,11 +475,18 @@ export function HabitTracker() {
           <p className="text-gray-500 text-sm mt-1">
             {isToday 
               ? `${completedCount}/${visibleHabits.length} completados hoy`
-              : currentDate.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+              : formatDateEsLower(currentDate, { weekday: 'long', day: 'numeric', month: 'long' })
             }
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="flex items-center gap-2 bg-income text-white px-4 py-2 rounded-lg hover:bg-income/90 transition-colors"
+          >
+            <Download size={18} />
+            <span>Exportar</span>
+          </button>
           <button
             onClick={() => {
               setEditingCategory(null);
@@ -417,7 +501,7 @@ export function HabitTracker() {
           <button
             onClick={() => {
               setEditingHabit(null);
-              setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null });
+              setFormData({ name: '', description: '', icon: 'pill', color: '#22c55e', target_type: 'boolean', target_value: 1, recurrence: 'daily', category_id: null, specific_days: null, start_date: null });
               setShowForm(true);
             }}
             className="flex items-center gap-2 bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors"
@@ -528,6 +612,13 @@ export function HabitTracker() {
                       const IconComponent = getIcon(habit.icon || 'pill');
                       const recurrenceLabel = habit.recurrence === 'biweekly'
                         ? 'Cada 2 semanas'
+                        : habit.recurrence === 'monthly' && habit.specific_days
+                        ? (() => {
+                            try {
+                              const days = JSON.parse(habit.specific_days);
+                              return `Día ${days[0]} de cada mes`;
+                            } catch { return 'Una vez al mes'; }
+                          })()
                         : habit.recurrence === 'specific' && habit.specific_days
                         ? (() => {
                             try {
@@ -645,6 +736,13 @@ export function HabitTracker() {
                 const IconComponent = getIcon(habit.icon || 'pill');
                 const recurrenceLabel = habit.recurrence === 'biweekly'
                   ? 'Cada 2 semanas'
+                  : habit.recurrence === 'monthly' && habit.specific_days
+                  ? (() => {
+                      try {
+                        const days = JSON.parse(habit.specific_days);
+                        return `Día ${days[0]} de cada mes`;
+                      } catch { return 'Una vez al mes'; }
+                    })()
                   : habit.recurrence === 'specific' && habit.specific_days
                   ? (() => {
                       try {
@@ -830,7 +928,7 @@ export function HabitTracker() {
                     <button
                       key={rec.key}
                       type="button"
-                      onClick={() => setFormData({ ...formData, recurrence: rec.key, specific_days: null })}
+                      onClick={() => setFormData({ ...formData, recurrence: rec.key, specific_days: rec.key === 'monthly' ? null : null })}
                       className={`p-3 rounded-lg text-sm transition-all ${
                         formData.recurrence === rec.key 
                           ? 'bg-primary text-white' 
@@ -875,6 +973,31 @@ export function HabitTracker() {
                           }`}
                         >
                           {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {formData.recurrence === 'monthly' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Selecciona el día del mes</label>
+                  <div className="grid grid-cols-7 gap-2">
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map(day => {
+                      const isSelected = formData.specific_days?.[0] === day;
+                      return (
+                        <button
+                          key={day}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, specific_days: [day] })}
+                          className={`px-2 py-2 rounded-lg text-sm transition-all ${
+                            isSelected
+                              ? 'bg-primary text-white'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >
+                          {day}
                         </button>
                       );
                     })}
@@ -997,6 +1120,104 @@ export function HabitTracker() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                <Download className="text-income" size={24} />
+                Exportar Hábitos
+              </h3>
+              <button onClick={() => setShowExportModal(false)} className="text-gray-500 hover:text-gray-700">
+                <X size={24} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+                <select
+                  value={exportCategory ?? ''}
+                  onChange={e => setExportCategory(e.target.value ? parseInt(e.target.value) : null)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                >
+                  <option value="">Todas las categorías</option>
+                  {categories.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+                <input
+                  type="date"
+                  value={exportRange.from}
+                  onChange={e => setExportRange({ ...exportRange, from: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+                <input
+                  type="date"
+                  value={exportRange.to}
+                  onChange={e => setExportRange({ ...exportRange, to: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email de destino <span className="text-gray-400 text-xs">(opcional)</span>
+                </label>
+                <input
+                  type="email"
+                  value={exportEmail}
+                  onChange={e => setExportEmail(e.target.value)}
+                  placeholder="Deja vacío para usar el email de tu perfil"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                />
+              </div>
+              <p className="text-sm text-gray-500">
+                Selecciona el rango de fechas y categoría para exportar o enviar por email las estadísticas.
+              </p>
+            </div>
+
+            <div className="flex gap-3 pt-4 mt-4 border-t">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSendEmail}
+                disabled={sendingEmail}
+                className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {sendingEmail ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  <>
+                    <Mail size={18} />
+                    Enviar Email
+                  </>
+                )}
+              </button>
+              <button
+                onClick={handleExport}
+                className="flex-1 px-4 py-2 bg-income text-white rounded-lg hover:bg-income/90 flex items-center justify-center gap-2"
+              >
+                <Download size={18} />
+                CSV
+              </button>
+            </div>
           </div>
         </div>
       )}

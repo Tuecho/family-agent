@@ -13,6 +13,8 @@ export function PetTracker() {
   const [showPetForm, setShowPetForm] = useState(false);
   const [editingPet, setEditingPet] = useState<Pet | null>(null);
   const [selectedPet, setSelectedPet] = useState<string | null>(null);
+  const [showVaccineForm, setShowVaccineForm] = useState(false);
+  const [showMedicationForm, setShowMedicationForm] = useState(false);
 
   const [petForm, setPetForm] = useState({
     name: '',
@@ -263,7 +265,7 @@ export function PetTracker() {
                       </div>
                     ))}
                     <button
-                      onClick={() => setSelectedPet(pet.id)}
+                      onClick={() => { setVaccineForm({ ...vaccineForm, pet_id: pet.id }); setShowVaccineForm(true); }}
                       className="text-sm text-primary hover:underline"
                     >
                       + Añadir vacuna
@@ -284,7 +286,7 @@ export function PetTracker() {
                       </div>
                     ))}
                     <button
-                      onClick={() => setSelectedPet(pet.id)}
+                      onClick={() => { setMedicationForm({ ...medicationForm, pet_id: pet.id }); setShowMedicationForm(true); }}
                       className="text-sm text-primary hover:underline"
                     >
                       + Añadir medicación
@@ -382,6 +384,159 @@ export function PetTracker() {
                   </button>
                   <button type="submit" className="flex-1 px-4 py-2 bg-primary text-white rounded-lg">
                     {editingPet ? 'Guardar' : 'Crear'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVaccineForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Nueva Vacuna</h2>
+              <form onSubmit={handleVaccineSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input
+                    type="text"
+                    required
+                    value={vaccineForm.name}
+                    onChange={(e) => setVaccineForm({ ...vaccineForm, name: e.target.value })}
+                    placeholder="Rabia, Moquillo..."
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha aplicada</label>
+                    <input
+                      type="date"
+                      required
+                      value={vaccineForm.date_given}
+                      onChange={(e) => setVaccineForm({ ...vaccineForm, date_given: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Próxima fecha</label>
+                    <input
+                      type="date"
+                      value={vaccineForm.next_due}
+                      onChange={(e) => setVaccineForm({ ...vaccineForm, next_due: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Veterinario</label>
+                  <input
+                    type="text"
+                    value={vaccineForm.veterinarian}
+                    onChange={(e) => setVaccineForm({ ...vaccineForm, veterinarian: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                  <textarea
+                    value={vaccineForm.notes}
+                    onChange={(e) => setVaccineForm({ ...vaccineForm, notes: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    rows={2}
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => { setShowVaccineForm(false); setSelectedPet(null); }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="flex-1 px-4 py-2 bg-primary text-white rounded-lg">
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showMedicationForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-4">Nueva Medicación</h2>
+              <form onSubmit={handleMedicationSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                  <input
+                    type="text"
+                    required
+                    value={medicationForm.name}
+                    onChange={(e) => setMedicationForm({ ...medicationForm, name: e.target.value })}
+                    placeholder="Antibiótico, Antiparasitario..."
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Dosis</label>
+                    <input
+                      type="text"
+                      value={medicationForm.dosage}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, dosage: e.target.value })}
+                      placeholder="1 comprimido"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia</label>
+                    <input
+                      type="text"
+                      value={medicationForm.frequency}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, frequency: e.target.value })}
+                      placeholder="2 veces al día"
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha inicio</label>
+                    <input
+                      type="date"
+                      required
+                      value={medicationForm.start_date}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, start_date: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Fecha fin</label>
+                    <input
+                      type="date"
+                      value={medicationForm.end_date}
+                      onChange={(e) => setMedicationForm({ ...medicationForm, end_date: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                  <textarea
+                    value={medicationForm.notes}
+                    onChange={(e) => setMedicationForm({ ...medicationForm, notes: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    rows={2}
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button type="button" onClick={() => { setShowMedicationForm(false); setSelectedPet(null); }} className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                  <button type="submit" className="flex-1 px-4 py-2 bg-primary text-white rounded-lg">
+                    Guardar
                   </button>
                 </div>
               </form>

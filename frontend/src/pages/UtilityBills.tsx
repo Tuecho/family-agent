@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, AlertTriangle, TrendingUp, TrendingDown, Zap, Droplets, Flame, Calendar, TrendingUp as TrendingUpIcon, Wifi, Smartphone, Settings } from 'lucide-react';
+import { Plus, Trash2, AlertTriangle, TrendingUp, TrendingDown, Zap, Droplets, Flame, Calendar, TrendingUp as TrendingUpIcon, Wifi, Smartphone, Settings, Edit2 } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import type { UtilityBill } from '../types';
 
@@ -17,9 +17,13 @@ export function UtilityBills() {
   const [bills, setBills] = useState<UtilityBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingBill, setEditingBill] = useState<UtilityBill | null>(null);
   const [customTypes, setCustomTypes] = useState<string[]>([]);
   const [showAddType, setShowAddType] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
+  const [sortBy, setSortBy] = useState<'date' | 'type' | 'amount'>('date');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [filterType, setFilterType] = useState<string>('all');
 
   const [formData, setFormData] = useState({
     type: 'luz' as string,
@@ -53,8 +57,11 @@ export function UtilityBills() {
     console.log('Submitting bill:', formData);
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      const res = await fetch(`${API_URL}/api/finance/utility-bills`, {
-        method: 'POST',
+      const url = editingBill 
+        ? `${API_URL}/api/finance/utility-bills/${editingBill.id}`
+        : `${API_URL}/api/finance/utility-bills`;
+      const res = await fetch(url, {
+        method: editingBill ? 'PUT' : 'POST',
         headers,
         body: JSON.stringify(formData)
       });
@@ -84,8 +91,22 @@ export function UtilityBills() {
     }
   };
 
+  const handleEdit = (bill: UtilityBill) => {
+    setEditingBill(bill);
+    setFormData({
+      type: bill.type,
+      month: bill.month,
+      year: bill.year,
+      amount: bill.amount.toString(),
+      consumption: bill.consumption?.toString() || '',
+      notes: bill.notes || '',
+    });
+    setShowForm(true);
+  };
+
   const resetForm = () => {
     setShowForm(false);
+    setEditingBill(null);
     setFormData({
       type: 'luz',
       month: new Date().getMonth() + 1,
@@ -290,21 +311,64 @@ export function UtilityBills() {
         </div>
       ) : (
         <div>
-          <h2 className="font-semibold text-gray-700 mb-3">Historial de facturas</h2>
+          <div className="flex flex-wrap items-center gap-4 mb-4">
+            <h2 className="font-semibold text-gray-700">Historial de facturas</h2>
+            <div className="flex items-center gap-2 ml-auto">
+              <label className="text-sm text-gray-500">Filtrar:</label>
+              <select
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+                className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg"
+              >
+                <option value="all">Todos</option>
+                {allTypes.map(t => (
+                  <option key={t} value={t}>{getTypeLabel(t)}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Tipo</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Mes</th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Importe</th>
+                    <th 
+                      className="px-4 py-3 text-left text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none"
+                      onClick={() => { setSortBy('type'); setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc'); }}
+                    >
+                      Tipo {sortBy === 'type' && (sortDirection === 'desc' ? '↓' : '↑')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none"
+                      onClick={() => { setSortBy('date'); setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc'); }}
+                    >
+                      Mes/Año {sortBy === 'date' && (sortDirection === 'desc' ? '↓' : '↑')}
+                    </th>
+                    <th 
+                      className="px-4 py-3 text-left text-sm font-medium text-gray-500 cursor-pointer hover:text-gray-700 select-none"
+                      onClick={() => { setSortBy('amount'); setSortDirection(sortDirection === 'desc' ? 'asc' : 'desc'); }}
+                    >
+                      Importe {sortBy === 'amount' && (sortDirection === 'desc' ? '↓' : '↑')}
+                    </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">Consumo</th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-500"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {bills.sort((a, b) => new Date(b.year, b.month - 1).getTime() - new Date(a.year, a.month - 1).getTime()).map((bill) => (
+                  {(() => {
+                    let filtered = filterType === 'all' ? bills : bills.filter(b => b.type === filterType);
+                    let sorted = [...filtered].sort((a, b) => {
+                      let cmp = 0;
+                      if (sortBy === 'date') {
+                        cmp = new Date(b.year, b.month - 1).getTime() - new Date(a.year, a.month - 1).getTime();
+                      } else if (sortBy === 'type') {
+                        cmp = a.type.localeCompare(b.type);
+                      } else {
+                        cmp = b.amount - a.amount;
+                      }
+                      return sortDirection === 'desc' ? cmp : -cmp;
+                    });
+                    return sorted.map((bill) => (
                     <tr key={bill.id} className="border-t border-gray-100">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
@@ -320,15 +384,24 @@ export function UtilityBills() {
                       <td className="px-4 py-3 font-medium text-gray-800">{bill.amount.toFixed(2)}€</td>
                       <td className="px-4 py-3 text-gray-500">{bill.consumption || '-'}</td>
                       <td className="px-4 py-3 text-right">
-                        <button
-                          onClick={() => handleDelete(bill.id)}
-                          className="p-1 text-gray-400 hover:text-red-500 rounded"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleEdit(bill)}
+                            className="p-1 text-gray-400 hover:text-primary rounded"
+                          >
+                            <Edit2 size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(bill.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 rounded"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
-                  ))}
+                  ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -340,7 +413,9 @@ export function UtilityBills() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
             <div className="p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Nueva factura</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-4">
+                {editingBill ? 'Editar factura' : 'Nueva factura'}
+              </h2>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <div className="flex justify-between items-center mb-1">

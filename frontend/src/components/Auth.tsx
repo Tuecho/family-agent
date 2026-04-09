@@ -1,5 +1,5 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
-import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle } from 'lucide-react';
+import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle, Home } from 'lucide-react';
 
 const STORAGE_KEY = 'family_agent_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -227,39 +227,47 @@ export function Login({ onLogin }: { onLogin: () => void }) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary via-pink-500 to-indigo-600 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm sm:max-w-md p-5 sm:p-8">
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 animate-mesh flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Decorative blurs */}
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-indigo-400/30 rounded-full blur-3xl" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[500px] h-[500px] bg-pink-400/30 rounded-full blur-3xl" />
+      <div className="absolute top-[40%] left-[50%] w-[300px] h-[300px] bg-purple-400/20 rounded-full blur-3xl" />
+
+      <div className="relative bg-white/90 backdrop-blur-xl rounded-3xl shadow-glass-lg w-full max-w-sm sm:max-w-md p-6 sm:p-8 border border-white/40 animate-scale-in">
         <div className="text-center mb-8">
           {loginImage ? (
             <img 
               src={loginImage} 
               alt="Login" 
-              className="w-20 h-20 rounded-full object-cover mx-auto mb-4 shadow-lg"
+              className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-soft-lg ring-4 ring-white/50"
             />
           ) : showLock ? (
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Lock className="text-primary" size={32} />
+            <div className="w-16 h-16 bg-gradient-to-br from-primary to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-glow animate-float">
+              <Lock className="text-white" size={28} />
             </div>
           ) : (
-            <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-3xl">🏠</span>
+            <div className="w-16 h-16 bg-gradient-to-br from-primary to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-glow animate-float">
+              <Home className="text-white" size={28} />
             </div>
           )}
-          <h1 className="text-2xl font-bold text-gray-800">Family Agent</h1>
-          <p className="text-gray-500 mt-2">
-            {showRegister ? 'Crea tu usuario' : 'Introduce tus credenciales'}
+          <h1 className="text-2xl font-extrabold bg-gradient-to-r from-slate-800 via-indigo-700 to-purple-700 bg-clip-text text-transparent">Family Agent</h1>
+          <p className="text-slate-500 mt-2 text-sm">
+            {showRegister ? 'Crea tu cuenta familiar' : 'Bienvenido de vuelta'}
           </p>
         </div>
 
         {success && (
-          <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm flex items-center gap-2">
-            <Check size={18} />
+          <div className="mb-4 p-3.5 bg-emerald-50 text-emerald-700 rounded-xl text-sm flex items-center gap-2 border border-emerald-200 animate-fade-in">
+            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+              <Check size={12} className="text-white" />
+            </div>
             {success}
           </div>
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+          <div className="mb-4 p-3.5 bg-red-50 text-red-700 rounded-xl text-sm border border-red-200 flex items-center gap-2 animate-fade-in">
+            <AlertCircle size={16} className="text-red-500 flex-shrink-0" />
             {error}
           </div>
         )}
@@ -267,7 +275,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         {showRegister ? (
           <form onSubmit={handleRegister} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Usuario
               </label>
               <div className="relative">
@@ -276,17 +284,17 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="usuario"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="input-modern pr-10"
                   required
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <User size={18} />
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <User size={16} />
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Contraseña
               </label>
               <div className="relative">
@@ -295,27 +303,27 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   value={password}
                   onChange={(e) => handlePasswordChange(e.target.value)}
                   placeholder="••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="input-modern pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
               {showRegister && password && (
-                <div className="mt-2 text-xs space-y-1">
+                <div className="mt-2.5 text-xs space-y-1">
                   {passwordErrors.map((err, i) => (
-                    <div key={i} className="flex items-center gap-1 text-red-500">
+                    <div key={i} className="flex items-center gap-1.5 text-red-500">
                       <X size={12} />
                       {err}
                     </div>
                   ))}
                   {passwordErrors.length === 0 && (
-                    <div className="flex items-center gap-1 text-green-500">
+                    <div className="flex items-center gap-1.5 text-emerald-500">
                       <Check size={12} />
                       Contraseña segura
                     </div>
@@ -325,7 +333,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Confirmar contraseña
               </label>
               <input
@@ -333,14 +341,14 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                className="input-modern"
                 required
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
+              className="w-full bg-gradient-to-r from-primary to-purple-500 text-white py-3 rounded-xl hover:shadow-glow transition-all duration-300 font-semibold hover:-translate-y-0.5 active:translate-y-0"
             >
               Crear usuario
             </button>
@@ -352,7 +360,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                 setError('');
                 setSuccess('');
               }}
-              className="w-full text-gray-500 py-2 hover:text-gray-700 transition-colors text-sm"
+              className="w-full text-slate-500 py-2 hover:text-primary transition-colors text-sm font-medium"
             >
               Volver al login
             </button>
@@ -360,7 +368,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         ) : (
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Usuario
               </label>
               <div className="relative">
@@ -369,17 +377,17 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="usuario"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="input-modern pr-10"
                   required
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                  <User size={18} />
+                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                  <User size={16} />
                 </div>
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                 Contraseña
               </label>
               <div className="relative">
@@ -388,22 +396,22 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  className="input-modern pr-10"
                   required
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium"
+              className="w-full bg-gradient-to-r from-primary to-purple-500 text-white py-3 rounded-xl hover:shadow-glow transition-all duration-300 font-semibold hover:-translate-y-0.5 active:translate-y-0"
             >
               Entrar
             </button>
@@ -418,7 +426,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                 setPassword('');
                 setConfirmPassword('');
               }}
-              className="w-full border border-primary text-primary py-3 rounded-lg hover:bg-primary/10 transition-colors font-medium flex items-center justify-center gap-2"
+              className="w-full border-2 border-primary/20 text-primary py-3 rounded-xl hover:bg-primary/5 hover:border-primary/40 transition-all duration-200 font-semibold flex items-center justify-center gap-2"
             >
               <UserPlus size={18} />
               Crear nuevo usuario
@@ -433,7 +441,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   setSuccess('');
                   setResetStep('email');
                 }}
-                className="w-full text-gray-500 py-2 hover:text-primary transition-colors text-sm"
+                className="w-full text-slate-500 py-2 hover:text-primary transition-colors text-sm font-medium"
               >
                 ¿Olvidaste tu contraseña?
               </button>
@@ -442,9 +450,9 @@ export function Login({ onLogin }: { onLogin: () => void }) {
         )}
 
         {showForgotPassword && (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-fade-in">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Recuperar contraseña</h3>
+              <h3 className="text-lg font-bold text-slate-800">Recuperar contraseña</h3>
               <button
                 onClick={() => {
                   setShowForgotPassword(false);
@@ -455,31 +463,31 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                   setResetError('');
                   setResetSuccess('');
                 }}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1 hover:bg-slate-100 rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
 
             {resetSuccess && (
-              <div className="mb-4 p-3 bg-green-100 text-green-700 rounded-lg text-sm">
+              <div className="mb-4 p-3.5 bg-emerald-50 text-emerald-700 rounded-xl text-sm border border-emerald-200">
                 {resetSuccess}
               </div>
             )}
 
             {resetError && (
-              <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
+              <div className="mb-4 p-3.5 bg-red-50 text-red-700 rounded-xl text-sm border border-red-200">
                 {resetError}
               </div>
             )}
 
             {resetStep === 'email' ? (
               <form onSubmit={handleForgotPassword} className="space-y-4">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-slate-600">
                   Introduce tu nombre de usuario. Si existe y tiene email configurado, recibirás un código de recuperación.
                 </p>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Usuario
                   </label>
                   <input
@@ -487,25 +495,25 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Tu usuario"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="input-modern"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={resetLoading || !username.trim()}
-                  className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-primary to-purple-500 text-white py-3 rounded-xl hover:shadow-glow transition-all duration-300 font-semibold disabled:opacity-50 disabled:hover:shadow-none disabled:hover:translate-y-0 hover:-translate-y-0.5"
                 >
                   {resetLoading ? 'Enviando...' : 'Enviar código'}
                 </button>
               </form>
             ) : (
               <form onSubmit={handleResetPassword} className="space-y-4">
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-slate-600">
                   Introduce el código que recibiste y tu nueva contraseña.
                 </p>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Código de recuperación
                   </label>
                   <input
@@ -513,13 +521,13 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                     value={resetCode}
                     onChange={(e) => setResetCode(e.target.value.toUpperCase())}
                     placeholder="Código de 6 caracteres"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent text-center text-lg tracking-widest font-mono"
+                    className="input-modern text-center text-lg tracking-widest font-mono"
                     maxLength={6}
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Nueva contraseña
                   </label>
                   <input
@@ -527,12 +535,12 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="input-modern"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                     Confirmar nueva contraseña
                   </label>
                   <input
@@ -540,14 +548,14 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                     value={confirmNewPassword}
                     onChange={(e) => setConfirmNewPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="input-modern"
                     required
                   />
                 </div>
                 <button
                   type="submit"
                   disabled={resetLoading || !resetCode || !newPassword || !confirmNewPassword}
-                  className="w-full bg-primary text-white py-3 rounded-lg hover:bg-primary/90 transition-colors font-medium disabled:opacity-50"
+                  className="w-full bg-gradient-to-r from-primary to-purple-500 text-white py-3 rounded-xl hover:shadow-glow transition-all duration-300 font-semibold disabled:opacity-50 hover:-translate-y-0.5"
                 >
                   {resetLoading ? 'Guardando...' : 'Cambiar contraseña'}
                 </button>
@@ -558,7 +566,7 @@ export function Login({ onLogin }: { onLogin: () => void }) {
                     setResetCode('');
                     setResetError('');
                   }}
-                  className="w-full text-gray-500 py-2 hover:text-gray-700 transition-colors text-sm"
+                  className="w-full text-slate-500 py-2 hover:text-primary transition-colors text-sm font-medium"
                 >
                   No recibí el código, reenviar
                 </button>

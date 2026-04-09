@@ -31,7 +31,20 @@ export function FamilyTasks() {
   const [sharedUsers, setSharedUsers] = useState<SharedUser[]>([]);
   const [familyMembers, setFamilyMembers] = useState<any[]>([]);
   const [userNames, setUserNames] = useState<Record<number, string>>({});
+  const [now, setNow] = useState(new Date());
   
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setNow(new Date());
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+  
+  useEffect(() => {
+    fetchTasks();
+    fetchSharedUsers();
+  }, []);
+
   const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
@@ -39,11 +52,6 @@ export function FamilyTasks() {
     priority: 'medium',
     assigned_to_id: ''
   });
-
-  useEffect(() => {
-    fetchTasks();
-    fetchSharedUsers();
-  }, []);
 
   const fetchSharedUsers = async () => {
     try {
@@ -257,6 +265,28 @@ export function FamilyTasks() {
     return dateStr < today;
   };
 
+  const getCountdown = (dateStr: string | null) => {
+    if (!dateStr) return null;
+    const now = new Date();
+    const due = new Date(dateStr);
+    const diff = due.getTime() - now.getTime();
+    
+    if (diff < 0) return null;
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return { text: `${days}d`, days, hours, color: 'text-gray-500' };
+    } else if (hours > 0) {
+      return { text: `${hours}h`, days: 0, hours, color: 'text-orange-500' };
+    } else if (minutes > 0) {
+      return { text: `${minutes}m`, days: 0, hours: 0, color: 'text-red-500' };
+    }
+    return { text: 'Ahora', days: 0, hours: 0, color: 'text-red-600' };
+  };
+
   const generateTasksShareText = () => {
     const header = '📋 *Tareas Familiares*\n\n';
     const items = pendingFamilyTasks.map((task, i) => {
@@ -425,6 +455,11 @@ export function FamilyTasks() {
                         <span className="flex items-center gap-1 ml-2 text-red-500">
                           <AlertCircle size={14} />
                           Atrasada
+                        </span>
+                      )}
+                      {!isOverdue(task.due_date) && getCountdown(task.due_date) && (
+                        <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 ${getCountdown(task.due_date)?.color}`}>
+                          ⏱ {getCountdown(task.due_date)?.text}
                         </span>
                       )}
                     </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, Clock } from 'lucide-react';
 import type { FamilyEvent } from '../types';
-import { formatTime24 } from '../utils/format';
+import { formatTime24, formatDateEsLower } from '../utils/format';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -223,7 +223,7 @@ export function Agenda() {
     setCurrentDate(d);
   };
 
-  const todayLabel = currentDate.toLocaleDateString('es-ES', {
+  const todayLabel = formatDateEsLower(currentDate, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -392,7 +392,7 @@ export function Agenda() {
           >
             <ChevronRight size={18} />
           </button>
-          <span className="ml-3 font-medium text-gray-700 capitalize">{todayLabel}</span>
+          <span className="ml-3 font-medium text-gray-700">{todayLabel}</span>
         </div>
 
         <div className="flex gap-2">
@@ -544,8 +544,8 @@ export function Agenda() {
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <div className="text-lg font-semibold text-gray-800 capitalize">
-                {currentDate.toLocaleDateString('es-ES', {
+              <div className="text-lg font-semibold text-gray-800">
+                {formatDateEsLower(currentDate, {
                   weekday: 'long',
                   day: 'numeric',
                   month: 'long',
@@ -623,7 +623,7 @@ export function Agenda() {
                       )}
                       {ev.end_date && (
                         <p className="text-xs text-purple-600 mt-1 flex items-center gap-1">
-                          📅 Varios días: hasta {new Date(ev.end_date + 'T00:00:00').toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                          📅 Varios días: hasta {formatDateEsLower(new Date(ev.end_date + 'T00:00:00'), { day: 'numeric', month: 'short' })}
                         </p>
                       )}
                     </div>
