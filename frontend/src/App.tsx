@@ -180,6 +180,7 @@ function AppContent() {
           {activePage === 'modules' && <ModuleManager />}
           {activePage === 'work_hours' && <WorkHours />}
           {activePage === 'interesting_places' && <SitesOfInterest />}
+          {activePage === 'family_organization' && <FamilyOrganization />}
         </div>
       </main>
 

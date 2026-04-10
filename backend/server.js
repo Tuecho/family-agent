@@ -133,6 +133,76 @@ async function initDb() {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS global_module_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      module_key TEXT NOT NULL UNIQUE,
+      hidden INTEGER DEFAULT 0,
+      hidden_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  app.get('/api/admin/modules/hidden', (req, res) => {
+    const userId = getCurrentUserId(req.headers);
+    if (!userId) return res.status(401).json({ error: 'No autorizado' });
+    
+    const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+    stmt.bind([userId]);
+    let admin = null;
+    if (stmt.step()) admin = stmt.getAsObject();
+    stmt.free();
+    
+    if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+    
+    const modulesStmt = db.prepare('SELECT module_key, hidden, hidden_at FROM global_module_settings');
+    const modules = [];
+    while (modulesStmt.step()) {
+      modules.push(modulesStmt.getAsObject());
+    }
+    modulesStmt.free();
+    
+    res.json(modules);
+  });
+
+  app.put('/api/admin/modules/hide', (req, res) => {
+    const userId = getCurrentUserId(req.headers);
+    if (!userId) return res.status(401).json({ error: 'No autorizado' });
+    
+    const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+    stmt.bind([userId]);
+    let admin = null;
+    if (stmt.step()) admin = stmt.getAsObject();
+    stmt.free();
+    
+    if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+    
+    const { module_key, hidden } = req.body;
+    if (!module_key) return res.status(400).json({ error: 'module_key requerido' });
+    
+    const upsertStmt = db.prepare(`
+      INSERT INTO global_module_settings (module_key, hidden, hidden_at, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(module_key) DO UPDATE SET hidden = ?, hidden_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    `);
+    upsertStmt.run([module_key, hidden ? 1 : 0, hidden ? new Date().toISOString() : null, hidden ? 1 : 0]);
+    upsertStmt.free();
+    
+    saveDb();
+    res.json({ success: true, module_key, hidden });
+  });
+
+  app.get('/api/global-hidden-modules', (req, res) => {
+    const stmt = db.prepare('SELECT module_key FROM global_module_settings WHERE hidden = 1');
+    const modules = [];
+    while (stmt.step()) {
+      modules.push(stmt.getAsObject().module_key);
+    }
+    stmt.free();
+    res.json(modules);
+  });
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS notification_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       owner_id INTEGER,
@@ -6743,7 +6813,47 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const profileData = profile || { name: 'Usuario', family_name: 'Mi Familia' };
   const familyName = profileData.family_name || 'Familia';
   const membersMap = members.reduce((acc, m) => { acc[m.id] = m.name; return acc; }, {});
-  
+
+  let weatherText = '';
+  let weatherSection = '';
+  const city = profileData?.city;
+  if (city) {
+    try {
+      const geoResponse = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=es&format=json`);
+      const geoData = await geoResponse.json();
+      if (geoData.results && geoData.results.length > 0) {
+        const { latitude, longitude } = geoData.results[0];
+        const weatherResponse = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,apparent_temperature,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=2`
+        );
+        const weatherData = await weatherResponse.json();
+        const temp = weatherData.current?.temperature_2m;
+        const weatherCode = weatherData.current?.weather_code;
+        const tomorrowCode = weatherData.daily?.weather_code?.[1];
+        const tomorrowMax = weatherData.daily?.temperature_2m_max?.[1];
+        const tomorrowMin = weatherData.daily?.temperature_2m_min?.[1];
+        const weatherDescriptions = {
+          0: 'Despejado', 1: 'Mayormente despejado', 2: 'Parcialmente nublado', 3: 'Nublado',
+          45: 'Niebla', 48: 'Niebla', 51: 'Llovizna ligera', 53: 'Llovizna', 55: 'Llovizna densa',
+          61: 'Lluvia ligera', 63: 'Lluvia', 65: 'Lluvia intensa', 71: 'Nieve ligera', 73: 'Nieve',
+          75: 'Nieve intensa', 80: 'Chubascos ligeros', 81: 'Chubascos', 82: 'Chubascos intensos', 95: 'Tormenta'
+        };
+        const description = weatherDescriptions[weatherCode] || 'Desconocido';
+        const tomorrowDescription = weatherDescriptions[tomorrowCode] || 'Desconocido';
+        weatherText = `🌤️ EL TIEMPO EN ${city.toUpperCase()}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `Ahora: ${temp}°C - ${description}\n` +
+          `Mañana: ${tomorrowMin}°C / ${tomorrowMax}°C - ${tomorrowDescription}`;
+        weatherSection = `
+          <div style="background: linear-gradient(to right, #e0f2fe, #f0f9ff); margin: 0 20px; padding: 16px; border-radius: 12px; border-left: 4px solid #0ea5e9;">
+            <h3 style="margin: 0 0 8px 0; color: #0369a1; font-size: 16px;">🌤️ El tiempo en ${city}</h3>
+            <p style="margin: 0 0 4px 0; color: #0c4a6e; font-size: 14px;"><strong>Ahora:</strong> ${temp}°C - ${description}</p>
+            <p style="margin: 0; color: #0c4a6e; font-size: 14px;"><strong>Mañana:</strong> ${tomorrowMin}°C / ${tomorrowMax}°C - ${tomorrowDescription}</p>
+          </div>
+        `;
+      }
+    } catch (e) { console.error('Error fetching weather:', e); }
+  }
+
   if (!events || !Array.isArray(events)) events = [];
   if (!budgets || !Array.isArray(budgets)) budgets = [];
   if (!tasks || !Array.isArray(tasks)) tasks = [];

@@ -47,7 +47,7 @@ export function AdminPage() {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'modules'>('users');
   
   const [loginImage, setLoginImage] = useState('');
   const [showLock, setShowLock] = useState(true);
@@ -56,6 +56,7 @@ export function AdminPage() {
   const [uploadingDb, setUploadingDb] = useState(false);
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deleteSuggestionId, setDeleteSuggestionId] = useState<number | null>(null);
+  const [hiddenModules, setHiddenModules] = useState<string[]>([]);
 
   useEffect(() => {
     fetchData();
@@ -104,9 +105,41 @@ export function AdminPage() {
     }
   };
 
+  const fetchHiddenModules = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/admin/modules/hidden`, { headers });
+      const data = await response.json();
+      setHiddenModules(data.filter((m: any) => m.hidden).map((m: any) => m.module_key));
+    } catch (error) {
+      console.error('Error fetching hidden modules:', error);
+    }
+  };
+
+  const toggleModuleVisibility = async (moduleKey: string) => {
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const isHidden = hiddenModules.includes(moduleKey);
+      await fetch(`${API_URL}/api/admin/modules/hide`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ module_key: moduleKey, hidden: !isHidden })
+      });
+      setHiddenModules(isHidden ? hiddenModules.filter(m => m !== moduleKey) : [...hiddenModules, moduleKey]);
+      localStorage.setItem('profile_refresh', Date.now().toString());
+      window.dispatchEvent(new Event('profile_updated'));
+    } catch (error) {
+      console.error('Error toggling module visibility:', error);
+      alert('Error al cambiar visibilidad del módulo');
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'login') {
       fetchLoginSettings();
+    }
+    if (activeTab === 'modules') {
+      fetchHiddenModules();
     }
   }, [activeTab]);
 
@@ -593,6 +626,18 @@ export function AdminPage() {
           <Database size={16} className="inline" />
           <span className="hidden sm:inline">Base de Datos</span>
           <span className="sm:hidden text-xs">BBDD</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('modules')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'modules'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <EyeOff size={16} className="inline" />
+          <span className="hidden sm:inline">Módulos</span>
+          <span className="sm:hidden text-xs">Mod</span>
         </button>
       </div>
 
@@ -1337,6 +1382,104 @@ export function AdminPage() {
                 {creating ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
                 Crear Usuario
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'modules' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <EyeOff size={18} />
+              <span className="font-medium">Módulos Globales</span>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-yellow-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-yellow-800 mb-1">Ocultar módulos para todos los usuarios</h4>
+                  <p className="text-sm text-yellow-600">
+                    Los módulos que ocultes aquí no serán visibles para ningún usuario de la aplicación. 
+                    Útil cuando un módulo deja de funcionar o está en mantenimiento.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              {[
+                { key: 'sales', label: 'Ventas' },
+                { key: 'howitworks', label: 'Cómo funciona' },
+                { key: 'about', label: 'Acerca de' },
+                { key: 'terms', label: 'Términos' },
+                { key: 'privacy', label: 'Privacidad' },
+                { key: 'agenda', label: 'Agenda' },
+                { key: 'shopping', label: 'Lista Compra' },
+                { key: 'tasks', label: 'Tareas' },
+                { key: 'habits', label: 'Hábitos' },
+                { key: 'notes', label: 'Notas' },
+                { key: 'meals', label: 'Comidas' },
+                { key: 'books_movies', label: 'Libros y Películas' },
+                { key: 'gifts', label: 'Regalos' },
+                { key: 'restaurants', label: 'Restaurantes' },
+                { key: 'contacts', label: 'Contactos' },
+                { key: 'gallery', label: 'Galería' },
+                { key: 'chatbot', label: 'Chat IA' },
+                { key: 'home_inventory', label: 'Inventario Hogar' },
+                { key: 'home_maintenance', label: 'Mantenimiento' },
+                { key: 'subscriptions', label: 'Suscripciones' },
+                { key: 'travel_manager', label: 'Viajes' },
+                { key: 'savings_goals', label: 'Ahorros' },
+                { key: 'internal_debts', label: 'Deudas' },
+                { key: 'utility_bills', label: 'Facturas' },
+                { key: 'pet_tracker', label: 'Mascotas' },
+                { key: 'extra_school', label: 'Educación' },
+                { key: 'birthdays', label: 'Cumpleaños' },
+                { key: 'accounting', label: 'Contabilidad' },
+                { key: 'budgets', label: 'Presupuestos' },
+                { key: 'work_hours', label: 'Horas Trabajo' },
+                { key: 'interesting_places', label: 'Lugares de Interés' },
+                { key: 'family_organization', label: 'Org. Familiar' },
+                { key: 'anniversaries', label: 'Aniversarios' },
+                { key: 'family_library', label: 'Biblioteca' },
+              ].map(module => {
+                const isHidden = hiddenModules.includes(module.key);
+                return (
+                  <div
+                    key={module.key}
+                    className={`border-2 rounded-lg p-4 transition-all ${
+                      isHidden 
+                        ? 'border-red-300 bg-red-50' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className={`font-medium ${isHidden ? 'text-red-700' : 'text-gray-700'}`}>
+                        {module.label}
+                      </span>
+                      <button
+                        onClick={() => toggleModuleVisibility(module.key)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          isHidden ? 'bg-red-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            isHidden ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {isHidden && (
+                      <p className="text-xs text-red-600 mt-2">Oculto para todos</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>

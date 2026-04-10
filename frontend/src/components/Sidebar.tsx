@@ -22,6 +22,7 @@ interface SidebarProps {
 export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }: SidebarProps) {
   const [profile, setProfile] = useState<Profile>({ name: '', avatar: null, family_name: 'Mi Familia', enabled_modules: null });
   const [isHovered, setIsHovered] = useState(false);
+  const [globalHiddenModules, setGlobalHiddenModules] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchProfile = () => {
@@ -33,7 +34,18 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     
     fetchProfile();
     
-    const interval = setInterval(fetchProfile, 2000);
+    const fetchGlobalHidden = () => {
+      fetch(`${API_URL}/api/global-hidden-modules`, { headers: getAuthHeaders() })
+        .then(res => res.json())
+        .then(data => setGlobalHiddenModules(data))
+        .catch(console.error);
+    };
+    fetchGlobalHidden();
+    
+    const interval = setInterval(() => {
+      fetchProfile();
+      fetchGlobalHidden();
+    }, 2000);
     
     const handleStorage = (e: StorageEvent) => {
       if (e.key === 'profile_refresh') {
@@ -59,6 +71,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
 
   const isModuleEnabled = (key: string) => {
     if (key === 'dashboard') return true;
+    if (globalHiddenModules.includes(key)) return false;
     if (!profile.enabled_modules) return defaultModules.includes(key);
     return profile.enabled_modules.split(',').includes(key);
   };

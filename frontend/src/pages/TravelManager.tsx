@@ -113,14 +113,14 @@ export function TravelManager() {
       const res = await fetch(url, { method, headers, body: JSON.stringify(payload) });
       if (!res.ok) {
         const errorText = await res.text();
-        alert('Error al crear viaje: ' + errorText);
+        alert(`Error al ${editingTrip ? 'guardar' : 'crear'} viaje: ` + errorText);
         return;
       }
       fetchData();
       resetTripForm();
     } catch (error) {
       console.error('Error saving trip:', error);
-      alert('Error al crear viaje');
+      alert(`Error al ${editingTrip ? 'guardar' : 'crear'} viaje`);
     }
   };
 
@@ -480,14 +480,36 @@ export function TravelManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 opacity-60">
                 {pastTrips.map((trip) => (
                   <div key={trip.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="p-2 rounded-lg bg-gray-100 text-gray-500">
-                        <MapPin size={18} />
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-gray-100 text-gray-500">
+                          <MapPin size={18} />
+                        </div>
+                        <div>
+                          <h3 className="font-medium text-gray-800">{trip.name}</h3>
+                          <p className="text-sm text-gray-500">{trip.destination}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-medium text-gray-800">{trip.name}</h3>
-                        <p className="text-sm text-gray-500">{trip.destination}</p>
-                      </div>
+                      <button
+                        onClick={() => {
+                          setEditingTrip(trip);
+                          setTripForm({
+                            name: trip.name,
+                            destination: trip.destination || '',
+                            start_date: trip.start_date || '',
+                            end_date: trip.end_date || '',
+                            budget: trip.budget?.toString() || '',
+                            flights_booked: trip.flights_booked || false,
+                            hotels_booked: trip.hotels_booked || false,
+                            activities_planned: trip.activities_planned || false,
+                            notes: trip.notes || '',
+                          });
+                          setShowTripForm(true);
+                        }}
+                        className="p-1.5 text-gray-400 hover:text-[var(--color-primary)] rounded-lg hover:bg-gray-100"
+                      >
+                        <Edit2 size={16} />
+                      </button>
                     </div>
                     <p className="text-sm text-gray-500">
                       {formatDate(trip.start_date)} - {formatDate(trip.end_date)}

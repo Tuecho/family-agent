@@ -54,7 +54,7 @@ function generateMonthGrid(current: Date) {
 
 export function Agenda() {
   const [events, setEvents] = useState<FamilyEvent[]>([]);
-  const [view, setView] = useState<ViewMode>('month');
+  const [view, setView] = useState<ViewMode>('day');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
