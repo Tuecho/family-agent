@@ -67,7 +67,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     };
   }, []);
 
-  const defaultModules = ['dashboard', 'agenda', 'accounting', 'birthdays', 'anniversaries', 'habits', 'shopping', 'notes', 'tasks', 'sales', 'interesting_places', 'family_organization', 'howitworks', 'about', 'terms', 'privacy'];
+  const defaultModules = ['dashboard', 'agenda', 'accounting', 'budgets', 'birthdays', 'anniversaries', 'habits', 'shopping', 'notes', 'tasks', 'meals', 'gifts', 'restaurants', 'books_movies', 'chatbot', 'sales', 'interesting_places', 'family_organization', 'home_inventory', 'home_maintenance', 'subscriptions', 'pet_tracker', 'travel_manager', 'savings_goals', 'internal_debts', 'utility_bills', 'family_library', 'extra_school', 'work_hours', 'howitworks', 'about', 'terms', 'privacy'];
 
   const isModuleEnabled = (key: string) => {
     if (key === 'dashboard') return true;
@@ -78,7 +78,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
 
   const getModuleOrder = (): string[] => {
     if (!profile.enabled_modules) return defaultModules;
-    return profile.enabled_modules.split(',').filter(Boolean);
+    return profile.enabled_modules.split(',').filter(key => !globalHiddenModules.includes(key));
   };
 
   const moduleMap: Record<string, { page: string; icon: any; label: string }> = {
@@ -254,26 +254,30 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               {isExpanded && <span className="text-sm font-medium">Módulos</span>}
             </button>
           </li>
-          <li>
-            <button
-              onClick={() => onNavigate('terms')}
-              className={navItemClasses('terms')}
-              title={isExpanded ? undefined : 'Términos'}
-            >
-              <FileText size={18} />
-              {isExpanded && <span className="text-sm font-medium">Términos</span>}
-            </button>
-          </li>
-          <li>
-            <button
-              onClick={() => onNavigate('privacy')}
-              className={navItemClasses('privacy')}
-              title={isExpanded ? undefined : 'Privacidad'}
-            >
-              <ShieldCheck size={18} />
-              {isExpanded && <span className="text-sm font-medium">Privacidad</span>}
-            </button>
-          </li>
+          {!globalHiddenModules.includes('terms') && (
+            <li>
+              <button
+                onClick={() => onNavigate('terms')}
+                className={navItemClasses('terms')}
+                title={isExpanded ? undefined : 'Términos'}
+              >
+                <FileText size={18} />
+                {isExpanded && <span className="text-sm font-medium">Términos</span>}
+              </button>
+            </li>
+          )}
+          {!globalHiddenModules.includes('privacy') && (
+            <li>
+              <button
+                onClick={() => onNavigate('privacy')}
+                className={navItemClasses('privacy')}
+                title={isExpanded ? undefined : 'Privacidad'}
+              >
+                <ShieldCheck size={18} />
+                {isExpanded && <span className="text-sm font-medium">Privacidad</span>}
+              </button>
+            </li>
+          )}
 
           {/* Divider */}
           <li className="pt-2 pb-1">

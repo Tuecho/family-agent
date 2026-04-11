@@ -54,11 +54,29 @@ function AppContent() {
   const { isAuthenticated, isAdmin, login, logout } = useAuth();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [globalHiddenModules, setGlobalHiddenModules] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL || ''}/api/global-hidden-modules`, { headers: { 'Authorization': localStorage.getItem('token') || '' } })
+      .then(res => res.json())
+      .then(data => setGlobalHiddenModules(data))
+      .catch(console.error);
+  }, []);
 
   const handleNavigate = (page: PageType) => {
+    if (globalHiddenModules.includes(page)) {
+      setActivePage('dashboard');
+      return;
+    }
     setActivePage(page);
     setIsMobileMenuOpen(false);
   };
+
+  useEffect(() => {
+    if (globalHiddenModules.includes(activePage)) {
+      setActivePage('dashboard');
+    }
+  }, [globalHiddenModules]);
 
   useEffect(() => {
     localStorage.setItem('lastPage', activePage);

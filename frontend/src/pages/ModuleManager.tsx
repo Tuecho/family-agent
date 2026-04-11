@@ -47,6 +47,7 @@ export function ModuleManager() {
   const [loading, setLoading] = useState(true);
   const [draggedItem, setDraggedItem] = useState<string | null>(null);
   const [dragOverItem, setDragOverItem] = useState<string | null>(null);
+  const [globalHiddenModules, setGlobalHiddenModules] = useState<string[]>([]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/profile`, { headers: getAuthHeaders() })
@@ -60,6 +61,11 @@ export function ModuleManager() {
         console.error(err);
         setLoading(false);
       });
+
+    fetch(`${API_URL}/api/global-hidden-modules`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => setGlobalHiddenModules(data))
+      .catch(console.error);
   }, []);
 
   const toggleModule = async (moduleKey: string) => {
@@ -148,6 +154,10 @@ export function ModuleManager() {
 
   const disabledModules = MODULE_LIST.filter(m => !enabledModules.includes(m.key));
 
+  const globalHiddenSet = new Set(globalHiddenModules);
+
+  const visibleEnabledModules = enabledModuleData.filter(m => !globalHiddenSet.has(m!.key));
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto">
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
@@ -170,7 +180,7 @@ export function ModuleManager() {
         <div className="mb-6">
           <h3 className="font-semibold text-gray-700 mb-2">Modulos activos (arrastra para ordenar)</h3>
           <div className="space-y-2">
-            {enabledModuleData.map((module) => {
+            {visibleEnabledModules.map((module) => {
               if (!module) return null;
               return (
                 <div
@@ -213,7 +223,7 @@ export function ModuleManager() {
         <div>
           <h3 className="font-semibold text-gray-700 mb-2">Modulos disponibles</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {disabledModules.map((module) => {
+            {disabledModules.filter(m => !globalHiddenSet.has(m.key)).map((module) => {
               return (
                 <div
                   key={module.key}

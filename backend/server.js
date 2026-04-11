@@ -143,65 +143,6 @@ async function initDb() {
     )
   `);
 
-  app.get('/api/admin/modules/hidden', (req, res) => {
-    const userId = getCurrentUserId(req.headers);
-    if (!userId) return res.status(401).json({ error: 'No autorizado' });
-    
-    const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
-    stmt.bind([userId]);
-    let admin = null;
-    if (stmt.step()) admin = stmt.getAsObject();
-    stmt.free();
-    
-    if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
-    
-    const modulesStmt = db.prepare('SELECT module_key, hidden, hidden_at FROM global_module_settings');
-    const modules = [];
-    while (modulesStmt.step()) {
-      modules.push(modulesStmt.getAsObject());
-    }
-    modulesStmt.free();
-    
-    res.json(modules);
-  });
-
-  app.put('/api/admin/modules/hide', (req, res) => {
-    const userId = getCurrentUserId(req.headers);
-    if (!userId) return res.status(401).json({ error: 'No autorizado' });
-    
-    const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
-    stmt.bind([userId]);
-    let admin = null;
-    if (stmt.step()) admin = stmt.getAsObject();
-    stmt.free();
-    
-    if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
-    
-    const { module_key, hidden } = req.body;
-    if (!module_key) return res.status(400).json({ error: 'module_key requerido' });
-    
-    const upsertStmt = db.prepare(`
-      INSERT INTO global_module_settings (module_key, hidden, hidden_at, updated_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(module_key) DO UPDATE SET hidden = ?, hidden_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-    `);
-    upsertStmt.run([module_key, hidden ? 1 : 0, hidden ? new Date().toISOString() : null, hidden ? 1 : 0]);
-    upsertStmt.free();
-    
-    saveDb();
-    res.json({ success: true, module_key, hidden });
-  });
-
-  app.get('/api/global-hidden-modules', (req, res) => {
-    const stmt = db.prepare('SELECT module_key FROM global_module_settings WHERE hidden = 1');
-    const modules = [];
-    while (stmt.step()) {
-      modules.push(stmt.getAsObject().module_key);
-    }
-    stmt.free();
-    res.json(modules);
-  });
-
   db.run(`
     CREATE TABLE IF NOT EXISTS notification_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2400,7 +2341,8 @@ app.get('/api/profile', (req, res) => {
   
   const baseProfile = profile || { id: userId, name: 'Usuario', family_name: 'Mi Familia', currency: 'EUR' };
   
-  const dashboardIds = getAccessibleUserIds(userId, 'share_dashboard');
+  res.json(baseProfile);
+});
 
 app.get('/api/finance/savings-pigs', (req, res) => {
   const userId = getCurrentUserId(req.headers);
@@ -2658,23 +2600,6 @@ app.put('/api/finance/utility-bills/:id', (req, res) => {
     console.error('Error updating utility bill:', error);
     res.status(500).json({ error: 'Error actualizando factura' });
   }
-});
-
-  const familyMembersStmt = db.prepare(`SELECT * FROM family_members WHERE owner_id IN (${dashboardIds.map(() => '?').join(',')}) ORDER BY owner_id, name`);
-  familyMembersStmt.bind(dashboardIds);
-  const familyMembers = [];
-  while (familyMembersStmt.step()) familyMembers.push(familyMembersStmt.getAsObject());
-  familyMembersStmt.free();
-  
-  const familyProfiles = [];
-  if (dashboardIds.length > 1) {
-    const profileStmt = db.prepare(`SELECT * FROM user_profile WHERE owner_id IN (${dashboardIds.map(() => '?').join(',')})`);
-    profileStmt.bind(dashboardIds);
-    while (profileStmt.step()) familyProfiles.push(profileStmt.getAsObject());
-    profileStmt.free();
-  }
-  
-  res.json({ ...baseProfile, familyMembers, familyProfiles });
 });
 
 app.put('/api/profile', (req, res) => {
@@ -8227,8 +8152,67 @@ app.delete('/api/contacts/:id', (req, res) => {
 
 await initDb();
 
+  app.get('/api/admin/modules/hidden', (req, res) => {
+    const userId = getCurrentUserId(req.headers);
+    if (!userId) return res.status(401).json({ error: 'No autorizado' });
+    
+    const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+    stmt.bind([userId]);
+    let admin = null;
+    if (stmt.step()) admin = stmt.getAsObject();
+    stmt.free();
+    
+    if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+    
+    const modulesStmt = db.prepare('SELECT module_key, hidden, hidden_at FROM global_module_settings');
+    const modules = [];
+    while (modulesStmt.step()) {
+      modules.push(modulesStmt.getAsObject());
+    }
+    modulesStmt.free();
+    
+    res.json(modules);
+  });
+
+  app.put('/api/admin/modules/hide', (req, res) => {
+    const userId = getCurrentUserId(req.headers);
+    if (!userId) return res.status(401).json({ error: 'No autorizado' });
+    
+    const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+    stmt.bind([userId]);
+    let admin = null;
+    if (stmt.step()) admin = stmt.getAsObject();
+    stmt.free();
+    
+    if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+    
+    const { module_key, hidden } = req.body;
+    if (!module_key) return res.status(400).json({ error: 'module_key requerido' });
+    
+    const upsertStmt = db.prepare(`
+      INSERT INTO global_module_settings (module_key, hidden, hidden_at, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(module_key) DO UPDATE SET hidden = ?, hidden_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+    `);
+    upsertStmt.run([module_key, hidden ? 1 : 0, hidden ? new Date().toISOString() : null, hidden ? 1 : 0]);
+    upsertStmt.free();
+    
+    saveDb();
+    res.json({ success: true, module_key, hidden });
+  });
+
+  app.get('/api/global-hidden-modules', (req, res) => {
+    const stmt = db.prepare('SELECT module_key FROM global_module_settings WHERE hidden = 1');
+    const modules = [];
+    while (stmt.step()) {
+      modules.push(stmt.getAsObject().module_key);
+    }
+    stmt.free();
+    res.json(modules);
+  });
+
 scheduleNotification();
-scheduleBackup();
+  scheduleBackup();
 
 app.get('/api/gallery/photos', (req, res) => {
   const userId = getCurrentUserId(req.headers);
