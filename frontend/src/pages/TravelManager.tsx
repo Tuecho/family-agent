@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Plane, Hotel, MapPin, CheckCircle, Calendar, Users, DollarSign, Package, Briefcase, CreditCard, Clock, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Plane, Hotel, MapPin, CheckCircle, Calendar, DollarSign, Clock, X } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import type { Trip, TripMember, TripActivity } from '../types';
 
@@ -135,107 +135,6 @@ export function TravelManager() {
     }
   };
 
-  const toggleChecklistItem = async (memberId: string, itemIndex: number) => {
-    const member = tripMembers[selectedTrip!]?.find(m => m.id === memberId);
-    if (!member) return;
-    
-    const newChecklist = [...member.checklist];
-    newChecklist[itemIndex] = { ...newChecklist[itemIndex], packed: !newChecklist[itemIndex].packed };
-    
-    try {
-      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/family/trips/members/${memberId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ checklist: newChecklist })
-      });
-      fetchData();
-    } catch (error) {
-      console.error('Error updating checklist:', error);
-    }
-  };
-
-  const addMember = async () => {
-    if (!selectedTrip || !memberForm.member_name.trim()) return;
-    try {
-      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      const checklist = memberForm.useDefaultChecklist ? DEFAULT_CHECKLIST : [];
-      await fetch(`${API_URL}/api/family/trips/members`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ trip_id: selectedTrip, member_name: memberForm.member_name, checklist })
-      });
-      setMemberForm({ member_name: '', useDefaultChecklist: true });
-      fetchData();
-    } catch (error) {
-      console.error('Error adding member:', error);
-    }
-  };
-
-  const deleteMember = async (memberId: string) => {
-    if (!confirm('¿Eliminar miembro?')) return;
-    try {
-      const headers = getAuthHeaders();
-      await fetch(`${API_URL}/api/family/trips/members/${memberId}`, { method: 'DELETE', headers });
-      fetchData();
-    } catch (error) {
-      console.error('Error deleting member:', error);
-    }
-  };
-
-  const addChecklistItem = async (memberId: string, itemName: string) => {
-    const member = tripMembers[selectedTrip!]?.find(m => m.id === memberId);
-    if (!member || !itemName.trim()) return;
-    
-    const newChecklist = [...member.checklist, { item: itemName, packed: false }];
-    try {
-      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/family/trips/members/${memberId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ checklist: newChecklist })
-      });
-      fetchData();
-    } catch (error) {
-      console.error('Error adding item:', error);
-    }
-  };
-
-  const deleteChecklistItem = async (memberId: string, itemIndex: number) => {
-    const member = tripMembers[selectedTrip!]?.find(m => m.id === memberId);
-    if (!member) return;
-    
-    const newChecklist = member.checklist.filter((_, i) => i !== itemIndex);
-    try {
-      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/family/trips/members/${memberId}`, {
-        method: 'PUT',
-        headers,
-        body: JSON.stringify({ checklist: newChecklist })
-      });
-      fetchData();
-    } catch (error) {
-      console.error('Error deleting item:', error);
-    }
-  };
-
-  const addActivity = async () => {
-    if (!selectedTrip || !activityForm.name.trim()) return;
-    try {
-      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/family/trips/activities`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ trip_id: selectedTrip, ...activityForm, cost: activityForm.cost ? Number(activityForm.cost) : 0 })
-      });
-      setActivityForm({ name: '', date: '', time: '', location: '', notes: '', cost: '', booked: false });
-      setShowActivityModal(false);
-      fetchData();
-    } catch (error) {
-      console.error('Error adding activity:', error);
-    }
-  };
-
   const toggleActivityBooked = async (activity: TripActivity) => {
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
@@ -258,6 +157,22 @@ export function TravelManager() {
       fetchData();
     } catch (error) {
       console.error('Error deleting activity:', error);
+    }
+  };
+
+  const addActivity = async () => {
+    if (!selectedTrip || !activityForm.name.trim()) return;
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/family/trips/activities`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ trip_id: selectedTrip, ...activityForm, cost: activityForm.cost ? Number(activityForm.cost) : 0 })
+      });
+      setActivityForm({ name: '', date: '', time: '', location: '', notes: '', cost: '', booked: false });
+      fetchData();
+    } catch (error) {
+      console.error('Error adding activity:', error);
     }
   };
 
@@ -291,16 +206,7 @@ export function TravelManager() {
   };
 
   const upcomingTrips = trips.filter(t => t.start_date && new Date(t.start_date) >= new Date());
-  const pastTrips = trips.filter(t => t.start_date && new Date(t.start_date) < new Date());
-  const undatedTrips = trips.filter(t => !t.start_date);
-
   const totalBudget = trips.reduce((sum, t) => sum + (t.budget || 0), 0);
-
-  const getMemberProgress = (checklist: { packed: boolean }[]) => {
-    if (checklist.length === 0) return 0;
-    const packed = checklist.filter(i => i.packed).length;
-    return Math.round((packed / checklist.length) * 100);
-  };
 
   return (
     <div className="space-y-6">
@@ -417,12 +323,6 @@ export function TravelManager() {
                           {trip.start_date && trip.end_date && ` (${getTripDuration(trip.start_date, trip.end_date)} días)`}
                         </span>
                       </div>
-                      {trip.budget && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <DollarSign size={14} className="text-gray-400" />
-                          <span className="text-gray-600">Presupuesto: {trip.budget}€</span>
-                        </div>
-                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-2 mb-3">
@@ -434,37 +334,18 @@ export function TravelManager() {
                         <Hotel size={12} />
                         {trip.hotels_booked ? 'Hotel OK' : 'Sin hotel'}
                       </span>
-                      <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trip.activities_planned ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        <MapPin size={12} />
-                        {trip.activities_planned ? 'Actividades OK' : 'Sin actividades'}
-                      </span>
                     </div>
-
-                    {tripActivities[trip.id] && tripActivities[trip.id].length > 0 && (
-                      <div className="mb-3 p-2 bg-purple-50 rounded-lg">
-                        <p className="text-xs font-medium text-purple-700 mb-1">Actividades ({tripActivities[trip.id].length})</p>
-                        <div className="text-xs text-gray-600">
-                          {tripActivities[trip.id].slice(0, 2).map(a => (
-                            <div key={a.id} className="flex items-center gap-1">
-                              <Clock size={10} />
-                              <span className={a.booked ? 'text-green-600' : ''}>{a.name}</span>
-                            </div>
-                          ))}
-                          {tripActivities[trip.id].length > 2 && <span className="text-gray-400">+{tripActivities[trip.id].length - 2} más</span>}
-                        </div>
-                      </div>
-                    )}
 
                     <div className="flex gap-2">
                       <button
                         onClick={() => openChecklistModal(trip.id, trip.name)}
-                        className="flex-1 py-2 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 rounded-lg transition-colors border border-[var(--color-primary)]"
+                        className="flex-1 py-2 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 rounded-lg border border-[var(--color-primary)]"
                       >
                         Equipaje
                       </button>
                       <button
-                        onClick={() => { openChecklistModal(trip.id, trip.name); setShowActivityModal(true); }}
-                        className="flex-1 py-2 text-sm text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors"
+                        onClick={() => { setSelectedTrip(trip.id); setSelectedTripName(trip.name); setShowActivityModal(true); }}
+                        className="flex-1 py-2 text-sm text-white bg-purple-500 hover:bg-purple-600 rounded-lg"
                       >
                         Actividades
                       </button>
@@ -481,7 +362,10 @@ export function TravelManager() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="text-lg font-bold text-gray-800">Actividades del viaje</h2>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">Actividades</h2>
+                <p className="text-sm text-gray-500">{selectedTripName}</p>
+              </div>
               <button onClick={() => setShowActivityModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X size={20} />
               </button>
@@ -554,58 +438,25 @@ export function TravelManager() {
                             {activity.booked && <CheckCircle size={14} />}
                           </button>
                           <div>
-                            <h4 className={`font-medium ${activity.booked ? 'text-green-800' : 'text-gray-800'}`}>
-                              {activity.name}
-                            </h4>
+                            <h4 className={`font-medium ${activity.booked ? 'text-green-800' : 'text-gray-800'}`}>{activity.name}</h4>
                             <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-1">
-                              {activity.date && (
-                                <span className="flex items-center gap-1">
-                                  <Calendar size={12} />
-                                  {formatDate(activity.date)}
-                                </span>
-                              )}
-                              {activity.time && (
-                                <span className="flex items-center gap-1">
-                                  <Clock size={12} />
-                                  {activity.time}
-                                </span>
-                              )}
-                              {activity.location && (
-                                <span className="flex items-center gap-1">
-                                  <MapPin size={12} />
-                                  {activity.location}
-                                </span>
-                              )}
-                              {activity.cost && (
-                                <span className="flex items-center gap-1">
-                                  <DollarSign size={12} />
-                                  {activity.cost}€
-                                </span>
-                              )}
+                              {activity.date && <span className="flex items-center gap-1"><Calendar size={12} />{formatDate(activity.date)}</span>}
+                              {activity.time && <span className="flex items-center gap-1"><Clock size={12} />{activity.time}</span>}
+                              {activity.cost && <span className="flex items-center gap-1"><DollarSign size={12} />{activity.cost}€</span>}
                             </div>
                           </div>
                         </div>
-                        <button
-                          onClick={() => deleteActivity(activity.id)}
-                          className="p-1 text-red-400 hover:text-red-600"
-                        >
+                        <button onClick={() => deleteActivity(activity.id)} className="p-1 text-red-400 hover:text-red-600">
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
                   ))}
-                  <div className="p-3 bg-purple-50 rounded-lg text-center">
-                    <span className="text-sm font-medium text-purple-700">
-                      Total actividades: {tripActivities[selectedTrip].length} | 
-                      Coste total: {tripActivities[selectedTrip].reduce((sum, a) => sum + (a.cost || 0), 0)}€
-                    </span>
-                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <MapPin size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p>No hay actividades</p>
-                  <p className="text-sm text-gray-400">Planifica las actividades de tu viaje</p>
+                  <p>No hay actividades aún</p>
                 </div>
               )}
             </div>
@@ -614,4 +465,4 @@ export function TravelManager() {
       )}
     </div>
   );
-} //
+}
