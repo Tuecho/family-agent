@@ -781,66 +781,68 @@ export function TravelManager() {
                   </button>
                 </div>
               ) : (
-                    <div key={member.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Users size={16} className="text-gray-400" />
-                          <h3 className="font-semibold">{member.member_name}</h3>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-medium text-gray-500">
-                            {getMemberProgress(member.checklist)}%
-                          </span>
-                          <button
-                            onClick={() => deleteMember(member.id)}
-                            className="p-1 text-red-400 hover:text-red-600"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
+                tripMembers[selectedTrip].map((member) => (
+                  <div key={member.id} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <Users size={16} className="text-gray-400" />
+                        <h3 className="font-semibold">{member.member_name}</h3>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
-                        <div
-                          className="bg-green-500 h-2 rounded-full transition-all"
-                          style={{ width: `${getMemberProgress(member.checklist)}%` }}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        {member.checklist.map((item, idx) => (
-                          <div key={idx} className="flex items-center gap-2 group">
-                            <button
-                              onClick={() => toggleChecklistItem(member.id, idx)}
-                              className={`w-5 h-5 rounded border flex items-center justify-center ${item.packed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
-                            >
-                              {item.packed && <CheckCircle size={14} />}
-                            </button>
-                            <span className={`flex-1 text-sm ${item.packed ? 'line-through text-gray-400' : ''}`}>
-                              {item.item}
-                            </span>
-                            <button
-                              onClick={() => deleteChecklistItem(member.id, idx)}
-                              className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600"
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        ))}
-                        <div className="flex gap-2 mt-2">
-                          <input
-                            type="text"
-                            placeholder="Añadir item..."
-                            className="flex-1 px-2 py-1 text-sm border rounded"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                addChecklistItem(member.id, (e.target as HTMLInputElement).value);
-                                (e.target as HTMLInputElement).value = '';
-                              }
-                            }}
-                          />
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-gray-500">
+                          {getMemberProgress(member.checklist)}%
+                        </span>
+                        <button
+                          onClick={() => deleteMember(member.id)}
+                          className="p-1 text-red-400 hover:text-red-600"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
-                  ))}
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                      <div
+                        className="bg-green-500 h-2 rounded-full transition-all"
+                        style={{ width: `${getMemberProgress(member.checklist)}%` }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      {member.checklist.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 group">
+                          <button
+                            onClick={() => toggleChecklistItem(member.id, idx)}
+                            className={`w-5 h-5 rounded border flex items-center justify-center ${item.packed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
+                          >
+                            {item.packed && <CheckCircle size={14} />}
+                          </button>
+                          <span className={`flex-1 text-sm ${item.packed ? 'line-through text-gray-400' : ''}`}>
+                            {item.item}
+                          </span>
+                          <button
+                            onClick={() => deleteChecklistItem(member.id, idx)}
+                            className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-600"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="flex gap-2 mt-2">
+                        <input
+                          type="text"
+                          placeholder="Añadir item..."
+                          className="flex-1 px-2 py-1 text-sm border rounded"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              addChecklistItem(member.id, (e.target as HTMLInputElement).value);
+                              (e.target as HTMLInputElement).value = '';
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
                 </div>
               )}
             </div>
