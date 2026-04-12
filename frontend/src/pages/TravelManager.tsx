@@ -469,44 +469,48 @@ export function TravelManager() {
                         Actividades
                       </button>
                     </div>
+                  </div>
+                ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
+        </div>
+      )}
 
-          {showActivityModal && (
-            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
-              <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-                <div className="p-4 border-b flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-gray-800">Actividades del viaje</h2>
-                  <button onClick={() => setShowActivityModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
-                    <X size={20} />
-                  </button>
-                </div>
+      {showActivityModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-800">Actividades del viaje</h2>
+              <button onClick={() => setShowActivityModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
 
-                <div className="p-4 border-b bg-gray-50">
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      placeholder="Actividad"
-                      value={activityForm.name}
-                      onChange={(e) => setActivityForm({ ...activityForm, name: e.target.value })}
-                      className="px-3 py-2 border rounded-lg"
-                    />
-                    <input
-                      type="date"
-                      value={activityForm.date}
-                      onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
-                      className="px-3 py-2 border rounded-lg"
-                    />
-                    <input
-                      type="time"
-                      value={activityForm.time}
-                      onChange={(e) => setActivityForm({ ...activityForm, time: e.target.value })}
-                      className="px-3 py-2 border rounded-lg"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Ubicación"
+            <div className="p-4 border-b bg-gray-50">
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  placeholder="Actividad"
+                  value={activityForm.name}
+                  onChange={(e) => setActivityForm({ ...activityForm, name: e.target.value })}
+                  className="px-3 py-2 border rounded-lg"
+                />
+                <input
+                  type="date"
+                  value={activityForm.date}
+                  onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
+                  className="px-3 py-2 border rounded-lg"
+                />
+                <input
+                  type="time"
+                  value={activityForm.time}
+                  onChange={(e) => setActivityForm({ ...activityForm, time: e.target.value })}
+                  className="px-3 py-2 border rounded-lg"
+                />
+                <input
+                  type="text"
+                  placeholder="Ubicación"
                   value={activityForm.location}
                   onChange={(e) => setActivityForm({ ...activityForm, location: e.target.value })}
                   className="px-3 py-2 border rounded-lg"
@@ -610,4 +614,4 @@ export function TravelManager() {
       )}
     </div>
   );
-}
+} //
