@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon, Edit2, X, User } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ListTodo, Calendar, AlertCircle, Share2, MessageCircle, Mail, Copy, Edit2, X, User } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -320,15 +320,7 @@ export function FamilyTasks() {
     alert('¡Tareas copiadas al portapapeles!');
   };
 
-  const shareTasksToFacebook = () => {
-    const text = encodeURIComponent(generateTasksShareText());
-    window.open(`https://www.facebook.com/sharer/sharer.php?quote=${text}`, '_blank');
-  };
 
-  const shareTasksToX = () => {
-    const text = encodeURIComponent(generateTasksShareText());
-    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
-  };
 
   return (
     <div className="p-4 md:p-8 max-w-3xl mx-auto">
@@ -404,20 +396,6 @@ export function FamilyTasks() {
                 >
                   <Copy size={16} />
                   Copiar
-                </button>
-                <button
-                  onClick={shareTasksToFacebook}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-                >
-                  <FacebookIcon />
-                  Facebook
-                </button>
-                <button
-                  onClick={shareTasksToX}
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-                >
-                  <TwitterIcon />
-                  X
                 </button>
               </div>
             </div>

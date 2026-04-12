@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, Share2, MessageCircle, Mail, Copy, FacebookIcon, TwitterIcon, X, Edit2, FolderPlus, Check } from 'lucide-react';
+import { CheckCircle, Circle, Trash2, Plus, ShoppingCart, Share2, MessageCircle, Mail, Copy, X, Edit2, FolderPlus, Check } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -261,19 +261,9 @@ export function ShoppingList() {
   };
 
   const copyToClipboard = async () => {
-    const text = generateShareText().replace(/[*_]/g, '');
+    const text = generateShareText();
     await navigator.clipboard.writeText(text);
     alert('¡Lista copiada al portapapeles!');
-  };
-
-  const shareToFacebook = () => {
-    const text = encodeURIComponent(generateShareText());
-    window.open(`https://www.facebook.com/sharer/sharer.php?quote=${text}`, '_blank');
-  };
-
-  const shareToX = () => {
-    const text = encodeURIComponent(generateShareText());
-    window.open(`https://twitter.com/intent/tweet?text=${text}`, '_blank');
   };
 
   const openEditItem = (item: Task) => {
@@ -400,20 +390,6 @@ export function ShoppingList() {
               >
                 <Copy size={14} />
                 Copiar
-              </button>
-              <button
-                onClick={shareToFacebook}
-                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                <FacebookIcon size={14} />
-                FB
-              </button>
-              <button
-                onClick={shareToX}
-                className="flex items-center gap-2 px-3 py-1.5 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium"
-              >
-                <TwitterIcon size={14} />
-                X
               </button>
             </div>
             </div>

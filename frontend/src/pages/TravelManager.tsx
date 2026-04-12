@@ -292,6 +292,7 @@ export function TravelManager() {
 
   const upcomingTrips = trips.filter(t => t.start_date && new Date(t.start_date) >= new Date());
   const pastTrips = trips.filter(t => t.start_date && new Date(t.start_date) < new Date());
+  const undatedTrips = trips.filter(t => !t.start_date);
 
   const totalBudget = trips.reduce((sum, t) => sum + (t.budget || 0), 0);
 
@@ -309,7 +310,7 @@ export function TravelManager() {
           <p className="text-gray-500 text-sm">Vuelos, hoteles, actividades y presupuesto</p>
         </div>
         <button
-          onClick={() => setShowTripForm(true)}
+          onClick={() => { setEditingTrip(null); setShowTripForm(true); }}
           className="flex items-center gap-2 bg-[var(--color-primary)] text-white px-4 py-2 rounded-lg hover:bg-[var(--color-primary)]/90 transition-colors"
         >
           <Plus size={18} />
@@ -516,6 +517,96 @@ export function TravelManager() {
                     </p>
                   </div>
                 ))}
+</div>
+            </div>
+          )}
+
+          {undatedTrips.length > 0 && (
+            <div>
+              <h2 className="font-semibold text-gray-500 mb-3">Viajes sin fecha</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {undatedTrips.map((trip) => (
+                  <div key={trip.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-gray-100 text-gray-500">
+                          <MapPin size={18} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800">{trip.name}</h3>
+                          <p className="text-sm text-gray-500">{trip.destination || 'Destino por definir'}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingTrip(trip);
+                            setTripForm({
+                              name: trip.name,
+                              destination: trip.destination || '',
+                              start_date: trip.start_date || '',
+                              end_date: trip.end_date || '',
+                              budget: trip.budget?.toString() || '',
+                              flights_booked: trip.flights_booked || false,
+                              hotels_booked: trip.hotels_booked || false,
+                              activities_planned: trip.activities_planned || false,
+                              notes: trip.notes || '',
+                            });
+                            setShowTripForm(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-[var(--color-primary)] rounded-lg hover:bg-gray-100"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTrip(trip.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-3">
+                      {trip.budget && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <DollarSign size={14} className="text-gray-400" />
+                          <span className="text-gray-600">Presupuesto: {trip.budget}€</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trip.flights_booked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <Plane size={12} />
+                        {trip.flights_booked ? 'Vuelos OK' : 'Sin vuelos'}
+                      </span>
+                      <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trip.hotels_booked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <Hotel size={12} />
+                        {trip.hotels_booked ? 'Hotel OK' : 'Sin hotel'}
+                      </span>
+                      <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trip.activities_planned ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <MapPin size={12} />
+                        {trip.activities_planned ? 'Actividades OK' : 'Sin actividades'}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openChecklistModal(trip.id, trip.name)}
+                        className="flex-1 py-2 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 rounded-lg transition-colors border border-[var(--color-primary)]"
+                      >
+                        Equipaje
+                      </button>
+                      <button
+                        onClick={() => { openChecklistModal(trip.id, trip.name); setShowActivityModal(true); }}
+                        className="flex-1 py-2 text-sm text-white bg-purple-500 hover:bg-purple-600 rounded-lg transition-colors"
+                      >
+                        Actividades
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -650,7 +741,7 @@ export function TravelManager() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Nombre del miembro"
+                  placeholder="Nombre del miembro (ej: Miguel)"
                   value={memberForm.member_name}
                   onChange={(e) => setMemberForm({ ...memberForm, member_name: e.target.value })}
                   className="flex-1 px-4 py-2 border rounded-lg"
@@ -662,7 +753,7 @@ export function TravelManager() {
                     onChange={(e) => setMemberForm({ ...memberForm, useDefaultChecklist: e.target.checked })}
                     className="w-4 h-4 rounded"
                   />
-                  Checklist por defecto
+                  Por defecto
                 </label>
                 <button
                   onClick={addMember}
@@ -674,9 +765,22 @@ export function TravelManager() {
             </div>
 
             <div className="p-4 overflow-y-auto flex-1">
-              {selectedTrip && tripMembers[selectedTrip]?.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {tripMembers[selectedTrip].map((member) => (
+              {!selectedTrip || !tripMembers[selectedTrip] || tripMembers[selectedTrip].length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <Package size={48} className="mx-auto text-gray-300 mb-4" />
+                  <p className="text-lg">No hay miembros añadidos</p>
+                  <p className="text-sm text-gray-400 mb-4">Añade miembros para gestionar su equipaje</p>
+                  <button
+                    onClick={() => {
+                      setMemberForm({ member_name: 'Miembro 1', useDefaultChecklist: true });
+                      setTimeout(() => addMember(), 100);
+                    }}
+                    className="px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90"
+                  >
+                    Añadir miembro rápido
+                  </button>
+                </div>
+              ) : (
                     <div key={member.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -737,12 +841,6 @@ export function TravelManager() {
                       </div>
                     </div>
                   ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-gray-500">
-                  <Package size={48} className="mx-auto text-gray-300 mb-4" />
-                  <p>No hay miembros añadidos</p>
-                  <p className="text-sm text-gray-400">Añade miembros para gestionar su equipaje</p>
                 </div>
               )}
             </div>

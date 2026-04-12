@@ -4278,6 +4278,35 @@ app.post('/api/work-hours/send-email', async (req, res) => {
     const totalHours = shifts.reduce((sum, s) => sum + (s.hours_worked || 0), 0);
     const daysWorked = new Set(shifts.map(s => s.date)).size;
 
+    const workSettingsStmt = db.prepare('SELECT * FROM work_settings WHERE owner_id = ?');
+    workSettingsStmt.bind([userId]);
+    let workSettings = null;
+    if (workSettingsStmt.step()) workSettings = workSettingsStmt.getAsObject();
+    workSettingsStmt.free();
+    
+    const dailyTarget = workSettings?.daily_target_hours || 2;
+    const workDays = (workSettings?.work_days || '0,1,2,3,4,5,6').split(',');
+    const workDaysCount = workDays.length;
+    const weeklyTarget = dailyTarget * workDaysCount;
+    const currentAccumulated = workSettings?.accumulated_hours || 0;
+    
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const weekStart = monday.toISOString().split('T')[0];
+    
+    const weekStmt = db.prepare('SELECT SUM(hours_worked) as week_hours FROM work_shifts WHERE owner_id = ? AND date >= ? AND hours_worked IS NOT NULL');
+    weekStmt.bind([userId, weekStart]);
+    let weekHours = 0;
+    if (weekStmt.step()) {
+      weekHours = weekStmt.getAsObject().week_hours || 0;
+    }
+    weekStmt.free();
+    
+    const weekOvertime = Math.max(0, weekHours - weeklyTarget);
+    const accumulatedHours = Math.max(0, currentAccumulated + weekOvertime);
+
     const transporter = nodemailer.createTransport({
       host: settings.smtp_host || 'smtp.gmail.com',
       port: settings.smtp_port || 587,
@@ -4323,11 +4352,15 @@ app.post('/api/work-hours/send-email', async (req, res) => {
             <td style="padding: 8px 0; color: #666;">Días trabajados</td>
             <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #333;">${daysWorked}</td>
           </tr>
+          <tr>
+            <td style="padding: 8px 0; color: #666;">Horas acumuladas</td>
+            <td style="padding: 8px 0; text-align: right; font-weight: bold; color: #e67e22;">${Math.floor(accumulatedHours)}h ${Math.round((accumulatedHours % 1) * 60)}m</td>
+          </tr>
         </table>
       </div>
       
       ${shifts.length > 0 ? `
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 12px;">
+      <div style="background: #f8f9fa; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
         <h3 style="margin: 0 0 15px 0; color: #333;">📅 Detalle de turnos</h3>
         <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
           <thead>
@@ -4346,6 +4379,10 @@ app.post('/api/work-hours/send-email', async (req, res) => {
             </tr>
             `).join('')}
             ${shifts.length > 30 ? `<tr><td colspan="3" style="padding: 8px; text-align: center; color: #999;">... y ${shifts.length - 30} turnos más</td></tr>` : ''}
+            <tr style="background: #e9ecef;">
+              <td colspan="2" style="padding: 10px 8px; text-align: right; font-weight: bold; color: #333;">Total período:</td>
+              <td style="padding: 10px 8px; text-align: right; font-weight: bold; color: #333;">${Math.floor(totalHours)}h ${Math.round((totalHours % 1) * 60)}m</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -4362,7 +4399,8 @@ app.post('/api/work-hours/send-email', async (req, res) => {
     const textContent = `📊 INFORME DE HORAS DE TRABAJO\n\n` +
       `Período: ${new Date(start).toLocaleDateString('es-ES')} - ${new Date(end).toLocaleDateString('es-ES')}\n` +
       `Total horas: ${Math.floor(totalHours)}h ${Math.round((totalHours % 1) * 60)}m\n` +
-      `Días trabajados: ${daysWorked}\n\n` +
+      `Días trabajados: ${daysWorked}\n` +
+      `Horas acumuladas: ${Math.floor(accumulatedHours)}h ${Math.round((accumulatedHours % 1) * 60)}m\n\n` +
       `📅 Detalle de turnos:\n` +
       `--------------------------\n` +
       shifts.slice(0, 30).map(s => {
@@ -4371,7 +4409,9 @@ app.post('/api/work-hours/send-email', async (req, res) => {
         const hours = s.hours_worked ? `${Math.floor(s.hours_worked)}h ${Math.round((s.hours_worked % 1) * 60)}m` : '-';
         return `${date} | ${time} | ${hours}`;
       }).join('\n') +
-      (shifts.length > 30 ? `\n... y ${shifts.length - 30} turnos más` : '');
+      (shifts.length > 30 ? `\n... y ${shifts.length - 30} turnos más` : '') +
+      `\n--------------------------\n` +
+      `Total período: ${Math.floor(totalHours)}h ${Math.round((totalHours % 1) * 60)}m`;
 
     await transporter.sendMail({
       from: `"Family Agent" <${settings.smtp_user}>`,
@@ -6730,7 +6770,7 @@ Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
 - Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], startDateParam = null, endDateParam = null) {
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], anniversaries = [], startDateParam = null, endDateParam = null) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
     return { success: false, reason: 'Email notifications not configured' };
   }
@@ -6828,7 +6868,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   `;
 
   const quoteHtml = `
-    <div style="background: linear-gradient(to right, #fff9e6, #fff3cd); margin: 0 20px; padding: 16px; border-radius: 12px; border-left: 4px solid #ffc107;">
+    <div style="background: linear-gradient(to right, #fff9e6, #fff3cd); margin: 0 20px 20px 20px; padding: 16px; border-radius: 12px; border-left: 4px solid #ffc107;">
       <p style="font-size: 15px; color: #856404; margin: 0; font-style: italic;">${quoteOfTheDay}</p>
     </div>
   `;
@@ -6848,6 +6888,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const hasMealPlans = notifyMeals && mealPlans && mealPlans.length > 0;
   const hasBirthdays = notifyBirthdays && birthdays && birthdays.length > 0;
   const hasMaintenance = maintenanceTasks && maintenanceTasks.length > 0;
+  const hasAnniversaries = anniversaries && anniversaries.length > 0;
 
   let budgetsSection = '';
   let budgetsText = '';
@@ -6857,6 +6898,8 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   let birthdaysText = '';
   let maintenanceSection = '';
   let maintenanceText = '';
+  let anniversariesSection = '';
+  let anniversariesText = '';
   if (hasBudgets) {
     const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
@@ -7002,6 +7045,37 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     `;
   }
 
+  if (hasAnniversaries) {
+    anniversariesText = `💍 ANIVERSARIOS PRÓXIMOS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      anniversaries.map(a => {
+        const daysText = a.daysUntil === 0 ? '¡HOY!' : (a.daysUntil === 1 ? 'Mañana' : `${a.daysUntil} días`);
+        const emoji = a.daysUntil <= 7 ? '🔴' : '💍';
+        return `${emoji} ${a.title} (${a.type}): ${daysText} (${a.years} años)`;
+      }).join('\n');
+
+    anniversariesSection = `
+      <div style="background: #fdf4ff; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <h3 style="margin: 0 0 16px 0; color: #a21caf;">💍 Aniversarios Próximos</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tbody>
+            ${anniversaries.map(a => {
+              const daysText = a.daysUntil === 0 ? '¡HOY!' : (a.daysUntil === 1 ? 'Mañana' : `${a.daysUntil} días`);
+              const textColor = a.daysUntil <= 7 ? '#dc2626' : '#a21caf';
+              return `
+                <tr style="border-bottom: 1px solid #f3e8ff;">
+                  <td style="padding: 10px 0;">💍</td>
+                  <td style="padding: 10px 0; color: #111827;">${a.title}</td>
+                  <td style="padding: 10px 0; color: #6b7280;">${a.type}</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${textColor};">${daysText}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   if (hasMaintenance) {
     maintenanceText = `🏠 MANTENIMIENTO DEL HOGAR\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       maintenanceTasks.map(t => {
@@ -7052,7 +7126,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${weatherSection}
     <div style="padding: 20px;">
       <p style="color: #666; font-size: 14px; margin: 0 0 20px 0;">No hay planes para los próximos 7 días (${dateRangeStr}).</p>
-      ${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${maintenanceSection}
+      ${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${anniversariesSection}${maintenanceSection}
     </div>
     ${footerHtml}
   </div>
@@ -7114,7 +7188,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${quoteHtml}
     ${weatherSection}
     <div style="padding: 20px;">
-      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${maintenanceSection}
+      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${anniversariesSection}${maintenanceSection}
     </div>
     ${footerHtml}
   </div>
@@ -7450,6 +7524,47 @@ async function sendUserNotification(userId) {
         return a.daysUntil - b.daysUntil;
       });
 
+    // Fetch anniversaries (within 30 days)
+    const anniversariesStmt = db.prepare(`SELECT * FROM anniversaries WHERE owner_id = ?`);
+    anniversariesStmt.bind([userId]);
+    const allAnniversaries = [];
+    while (anniversariesStmt.step()) {
+      allAnniversaries.push(anniversariesStmt.getAsObject());
+    }
+    anniversariesStmt.free();
+
+    const anniversaries = allAnniversaries
+      .filter(a => a.date && a.date.trim() !== '')
+      .map(a => {
+        const annivDate = new Date(a.date);
+        const annivMonth = annivDate.getMonth();
+        const annivDay = annivDate.getDate();
+        const currentYear = notificationStart.getFullYear();
+        const currentMonth = notificationStart.getMonth();
+        
+        let nextAnniv = new Date(currentYear + 1, annivMonth, annivDay);
+        let annivThisYear = new Date(currentYear, annivMonth, annivDay);
+        
+        if (annivThisYear < notificationStart) {
+          nextAnniv = new Date(currentYear + 1, annivMonth, annivDay);
+        } else {
+          nextAnniv = annivThisYear;
+        }
+        
+        const years = nextAnniv.getFullYear() - annivDate.getFullYear();
+        const daysUntil = Math.ceil((nextAnniv - notificationStart) / (1000 * 60 * 60 * 24));
+        
+        return {
+          title: a.title,
+          type: a.type,
+          date: a.date,
+          years: years,
+          daysUntil: daysUntil
+        };
+      })
+      .filter(a => a.daysUntil <= 30)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
     // Fetch home maintenance tasks (within 100 days)
     const accessibleMaintenanceIds = getAccessibleUserIds(userId, 'share_home_maintenance');
     const maintenancePlaceholders = accessibleMaintenanceIds.map(() => '?').join(',');
@@ -7476,7 +7591,7 @@ async function sendUserNotification(userId) {
       .filter(task => task.daysUntilDue < 100)
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, maintenanceTasks, tomorrow, nextWeek);
+    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, maintenanceTasks, anniversaries, tomorrow, nextWeek);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
   }

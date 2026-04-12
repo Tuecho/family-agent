@@ -24,7 +24,7 @@ export default function Anniversaries() {
 
   const fetchAnniversaries = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/anniversaries`, {
+      const response = await fetch(`/api/anniversaries`, {
         headers: getAuthHeaders()
       });
       if (response.ok) {
@@ -70,12 +70,12 @@ export default function Anniversaries() {
     e.preventDefault();
     try {
       const url = editingId 
-        ? `${import.meta.env.VITE_API_URL}/api/anniversaries/${editingId}`
-        : `${import.meta.env.VITE_API_URL}/api/anniversaries`;
+        ? `/api/anniversaries/${editingId}`
+        : `/api/anniversaries`;
       
       const response = await fetch(url, {
         method: editingId ? 'PUT' : 'POST',
-        headers: getAuthHeaders(),
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
       });
 
@@ -92,7 +92,7 @@ export default function Anniversaries() {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de que quieres eliminar este aniversario?')) return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/anniversaries/${id}`, {
+      const response = await fetch(`/api/anniversaries/${id}`, {
         method: 'DELETE',
         headers: getAuthHeaders()
       });
@@ -145,7 +145,8 @@ export default function Anniversaries() {
           <p className="text-gray-500 text-sm mt-1">Fechas importantes para no olvidar nunca</p>
         </div>
         <button
-          onClick={openNewModal}
+          type="button"
+          onClick={() => { setEditingId(null); setShowModal(true); }}
           className="btn-modern flex items-center gap-2"
         >
           <Plus size={20} />
@@ -161,7 +162,7 @@ export default function Anniversaries() {
         <div className="card-modern p-12 text-center text-gray-500">
           <CalendarHeart size={48} className="mx-auto text-gray-300 mb-4" />
           <p className="text-lg">No hay ningún aniversario guardado.</p>
-          <button onClick={openNewModal} className="mt-4 text-primary font-medium hover:underline">
+          <button onClick={() => { setEditingId(null); setShowModal(true); }} className="mt-4 text-primary font-medium hover:underline">
             ¡Agrega el primero!
           </button>
         </div>
@@ -249,7 +250,7 @@ export default function Anniversaries() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
           <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
             <div className="flex justify-between items-center p-6 border-b border-gray-100">
               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
