@@ -139,7 +139,7 @@ export function ChatWidget({ hidden }: { hidden?: boolean }) {
                   ¡Hola! Soy tu asistente
                 </p>
                 <p className="text-slate-400 text-xs">
-                  Puedo informarte sobre gastos, ingresos y balance mensual.
+                  Gastos, ingresos, tareas, famille, mascotas, recetas...
                 </p>
               </div>
             )}

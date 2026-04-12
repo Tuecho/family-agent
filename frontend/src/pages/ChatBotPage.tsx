@@ -20,18 +20,21 @@ interface LlmSettings {
 }
 
 const suggestedQuestions = [
-  '¿Cuánto hemos gastado este mes?',
-  '¿Cuáles son los mayores gastos?',
-  '¿Cuánto queda de presupuesto?',
-  'Análisis de gastos familiares',
-  '¿Qué tareas pendientes tengo?',
-  '¿Qué hay en la lista de la compra?',
-  'buscar nota cumple',
-  'buscar producto leche',
-  'buscar gasto supermercado',
-  '¿Qué notas tengo guardadas?',
-  'ver transacciones recientes',
-  'balance total acumulado',
+  'balance',
+  'gastos del mes',
+  'ingresos',
+  'tareas pendientes',
+  'lista de compra',
+  'mis notas',
+  'miembros familia',
+  'cumpleaños',
+  'mascotas',
+  'recetas',
+  'libros',
+  'películas',
+  'ahorros cerdito',
+  'trabajo horas',
+  'resumen total',
 ];
 
 const GROQ_MODELS = [
@@ -255,13 +258,14 @@ export function ChatBotPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSend = async (messageOverride?: string) => {
+    const message = messageOverride || input;
+    if (!message.trim() || isLoading) return;
 
     const userMessage: Message = {
       id: Math.random().toString(36).substring(2, 9),
       role: 'user',
-      content: input,
+      content: message,
       timestamp: new Date()
     };
 
@@ -272,8 +276,8 @@ export function ChatBotPage() {
     try {
       const endpoint = mode === 'advanced' ? '/api/chat/llm' : '/api/chat';
       const body = mode === 'advanced' 
-        ? { message: input, session_id: 'web' }
-        : { message: input, context: 'family_accounting' };
+        ? { message, session_id: 'web' }
+        : { message, context: 'family_accounting' };
 
       const response = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
@@ -308,8 +312,10 @@ export function ChatBotPage() {
     }
   };
 
-  const handleSuggestedQuestion = (question: string) => {
+  const handleSuggestedQuestion = async (question: string) => {
+    if (isLoading) return;
     setInput(question);
+    await handleSend(question);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

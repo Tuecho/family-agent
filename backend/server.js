@@ -34,10 +34,11 @@ const ALL_TABLES = [
   'invitations', 'user_shares', 'habits', 'habit_logs', 'habit_categories',
   'home_inventory', 'home_inventory_categories', 'home_maintenance', 'subscriptions',
   'pet_tracker', 'pet_vaccines', 'pet_medications',
-  'travel_manager', 'savings_pigs', 'savings_goals', 
+  'travel_manager', 'trip_members', 'trip_activities', 'savings_pigs', 'savings_goals', 
   'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
   'work_shifts', 'work_settings', 'interesting_places', 'anniversaries',
-  'password_reset_codes', 'app_settings', 'notification_settings',
+  'password_reset_codes', 'app_settings', 'notification_settings', 'global_module_settings',
+  'household_chores', 'chore_assignments', 'family_rewards', 'reward_earnings', 'member_points',
   'faqs', 'suggestions', 'contact_messages', 'sales_contacts'
 ];
 
@@ -277,8 +278,12 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_extra_school INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_interesting_places INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_anniversaries INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_family_organization INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_work_hours INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_family_organization INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE invitations ADD COLUMN share_work_hours INTEGER DEFAULT 0`); } catch(e) {}
 
   try { db.run(`ALTER TABLE family_events ADD COLUMN recurrence TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE family_events ADD COLUMN days_of_week TEXT`); } catch(e) {}
@@ -510,7 +515,18 @@ try { db.run(`ALTER TABLE family_members ADD COLUMN birthdate TEXT`); } catch(e)
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
-try { db.run(`ALTER TABLE family_gallery ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS custom_genres (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      name TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  try { db.run(`ALTER TABLE family_gallery ADD COLUMN owner_id INTEGER DEFAULT 1`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS recipes (
@@ -621,6 +637,30 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
   if (catCheck.length === 0 || catCheck[0].values[0][0] === 0) {
     for (const cat of defaultCategories) {
       db.run('INSERT INTO home_inventory_categories (owner_id, name, icon, color) VALUES (1, ?, ?, ?)', [cat.name, cat.icon, cat.color]);
+    }
+  }
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS subscription_categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      icon TEXT DEFAULT 'tag',
+      color TEXT DEFAULT '#6366f1',
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  const subCatCheck = db.exec('SELECT COUNT(*) FROM subscription_categories');
+  if (subCatCheck.length === 0 || subCatCheck[0].values[0][0] === 0) {
+    const defaultSubCats = [
+      { name: 'Streaming', icon: 'play', color: '#ef4444' },
+      { name: 'Música', icon: 'music', color: '#22c55e' },
+      { name: 'Gimnasio', icon: 'dumbbell', color: '#3b82f6' },
+      { name: 'Seguro', icon: 'shield', color: '#f59e0b' }
+    ];
+    for (const cat of defaultSubCats) {
+      db.run('INSERT INTO subscription_categories (owner_id, name, icon, color) VALUES (1, ?, ?, ?)', [cat.name, cat.icon, cat.color]);
     }
   }
 
@@ -5315,6 +5355,66 @@ app.delete('/api/home/subscriptions/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.get('/api/home/subscription-categories', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM subscription_categories WHERE owner_id = ? ORDER BY name');
+  stmt.bind([userId]);
+  const categories = [];
+  while (stmt.step()) categories.push(stmt.getAsObject());
+  stmt.free();
+  res.json(categories);
+});
+
+app.post('/api/home/subscription-categories', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, icon = 'tag', color = '#6366f1' } = req.body;
+  if (!name) return res.status(400).json({ error: 'Nombre requerido' });
+  
+  try {
+    const stmt = db.prepare('INSERT INTO subscription_categories (owner_id, name, icon, color) VALUES (?, ?, ?, ?)');
+    stmt.run([userId, name, icon, color]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error creating category:', error);
+    res.status(500).json({ error: 'Error creando categoría' });
+  }
+});
+
+app.put('/api/home/subscription-categories/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, icon, color } = req.body;
+  
+  try {
+    const stmt = db.prepare('UPDATE subscription_categories SET name = ?, icon = ?, color = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([name, icon, color, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating category:', error);
+    res.status(500).json({ error: 'Error actualizando categoría' });
+  }
+});
+
+app.delete('/api/home/subscription-categories/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM subscription_categories WHERE id = ? AND owner_id = ?', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
 app.get('/api/family-members/birthdays', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -5701,7 +5801,8 @@ app.post('/api/invitations', (req, res) => {
     share_family_members, share_gifts, share_books, share_movies, share_habits,
     share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker,
     share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills,
-    share_family_library, share_extra_school
+    share_family_library, share_extra_school, share_interesting_places, share_family_organization,
+    share_anniversaries, share_work_hours
   } = req.body;
   if (!to_username) return res.status(400).json({ error: 'Falta el nombre de usuario' });
   
@@ -5736,8 +5837,8 @@ app.post('/api/invitations', (req, res) => {
   
   try {
     const inviteStmt = db.prepare(`
-      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits, share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker, share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills, share_family_library, share_extra_school)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits, share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker, share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills, share_family_library, share_extra_school, share_interesting_places, share_family_organization, share_anniversaries, share_work_hours)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     inviteStmt.run([
       userId, 
@@ -5767,6 +5868,10 @@ app.post('/api/invitations', (req, res) => {
       share_utility_bills ? 1 : 0,
       share_family_library ? 1 : 0,
       share_extra_school ? 1 : 0,
+      share_interesting_places ? 1 : 0,
+      share_family_organization ? 1 : 0,
+      share_anniversaries ? 1 : 0,
+      share_work_hours ? 1 : 0,
     ]);
     inviteStmt.free();
     saveDb();
@@ -5902,13 +6007,14 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
     share_family_members, share_gifts, share_books, share_movies, share_habits,
     share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker,
     share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills,
-    share_family_library, share_extra_school
+    share_family_library, share_extra_school, share_interesting_places, share_family_organization,
+    share_anniversaries, share_work_hours
   } = req.body;
   
   try {
     db.run(`
       UPDATE user_shares 
-      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?, share_habits = ?, share_home_inventory = ?, share_home_maintenance = ?, share_subscriptions = ?, share_pet_tracker = ?, share_travel_manager = ?, share_savings_goals = ?, share_internal_debts = ?, share_utility_bills = ?, share_family_library = ?, share_extra_school = ?
+      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?, share_habits = ?, share_home_inventory = ?, share_home_maintenance = ?, share_subscriptions = ?, share_pet_tracker = ?, share_travel_manager = ?, share_savings_goals = ?, share_internal_debts = ?, share_utility_bills = ?, share_family_library = ?, share_extra_school = ?, share_interesting_places = ?, share_family_organization = ?, share_anniversaries = ?, share_work_hours = ?
       WHERE owner_id = ? AND shared_with_id = ?
     `, [
       share_dashboard ? 1 : 0,
@@ -5936,6 +6042,10 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
       share_utility_bills ? 1 : 0,
       share_family_library ? 1 : 0,
       share_extra_school ? 1 : 0,
+      share_interesting_places ? 1 : 0,
+      share_family_organization ? 1 : 0,
+      share_anniversaries ? 1 : 0,
+      share_work_hours ? 1 : 0,
       userId,
       sharedWithId
     ]);
@@ -6324,6 +6434,84 @@ app.post('/api/chat', async (req, res) => {
       shoppingItemsStmt.free();
     }
 
+    const membersStmt = db.prepare(`SELECT id, name, age_group, birthdate FROM family_members WHERE owner_id IN (${placeholders})`);
+    membersStmt.bind([...accessibleIds]);
+    const members = [];
+    while (membersStmt.step()) members.push(membersStmt.getAsObject());
+    membersStmt.free();
+
+    const habitsStmt = db.prepare(`SELECT id, name, description, icon, color, target_value, target_type FROM habits WHERE owner_id IN (${placeholders})`);
+    habitsStmt.bind([...accessibleIds]);
+    const habits = [];
+    while (habitsStmt.step()) habits.push(habitsStmt.getAsObject());
+    habitsStmt.free();
+
+    const savingsPigsStmt = db.prepare(`SELECT * FROM savings_pigs WHERE owner_id IN (${placeholders})`);
+    savingsPigsStmt.bind([...accessibleIds]);
+    const savingsPigs = [];
+    while (savingsPigsStmt.step()) savingsPigs.push(savingsPigsStmt.getAsObject());
+    savingsPigsStmt.free();
+
+    const savingsGoalsStmt = db.prepare(`SELECT * FROM savings_goals WHERE owner_id IN (${placeholders})`);
+    savingsGoalsStmt.bind([...accessibleIds]);
+    const savingsGoals = [];
+    while (savingsGoalsStmt.step()) savingsGoals.push(savingsGoalsStmt.getAsObject());
+    savingsGoalsStmt.free();
+
+    const petsStmt = db.prepare(`SELECT id, name, species, breed, weight FROM pet_tracker WHERE owner_id IN (${placeholders})`);
+    petsStmt.bind([...accessibleIds]);
+    const pets = [];
+    while (petsStmt.step()) pets.push(petsStmt.getAsObject());
+    petsStmt.free();
+
+    const recipesStmt = db.prepare(`SELECT id, name, category, prep_time FROM recipes WHERE owner_id IN (${placeholders}) ORDER BY name`);
+    recipesStmt.bind([...accessibleIds]);
+    const recipes = [];
+    while (recipesStmt.step()) recipes.push(recipesStmt.getAsObject());
+    recipesStmt.free();
+
+    const birthdaysStmt = db.prepare(`SELECT id, name, date, type FROM birthdays WHERE owner_id IN (${placeholders}) AND date LIKE ?`);
+    birthdaysStmt.bind([`${String(year)}-%`, ...accessibleIds]);
+    const birthdays = [];
+    while (birthdaysStmt.step()) birthdays.push(birthdaysStmt.getAsObject());
+    birthdaysStmt.free();
+
+    const anniversariesStmt = db.prepare(`SELECT id, name, date, type FROM anniversaries WHERE owner_id IN (${placeholders}) AND date LIKE ?`);
+    anniversariesStmt.bind([`${String(year)}-%`, ...accessibleIds]);
+    const anniversaries = [];
+    while (anniversariesStmt.step()) anniversaries.push(anniversariesStmt.getAsObject());
+    anniversariesStmt.free();
+
+    const booksStmt = db.prepare(`SELECT id, title, author, status FROM books WHERE owner_id IN (${placeholders})`);
+    booksStmt.bind([...accessibleIds]);
+    const books = [];
+    while (booksStmt.step()) books.push(booksStmt.getAsObject());
+    booksStmt.free();
+
+    const moviesStmt = db.prepare(`SELECT id, title, category, status FROM movies WHERE owner_id IN (${placeholders})`);
+    moviesStmt.bind([...accessibleIds]);
+    const movies = [];
+    while (moviesStmt.step()) movies.push(moviesStmt.getAsObject());
+    moviesStmt.free();
+
+    const mealPlansStmt = db.prepare(`SELECT id, day_of_week, meal_type, recipe_name FROM meal_plans WHERE owner_id IN (${placeholders})`);
+    mealPlansStmt.bind([...accessibleIds]);
+    const mealPlans = [];
+    while (mealPlansStmt.step()) mealPlans.push(mealPlansStmt.getAsObject());
+    mealPlansStmt.free();
+
+    const workShiftsStmt = db.prepare(`SELECT date, hours_worked, start_time, end_time FROM work_shifts WHERE owner_id = ? AND date LIKE ? ORDER BY date DESC LIMIT 20`);
+    workShiftsStmt.bind([userId, `${String(year)}-${String(month).padStart(2, '0')}-%`]);
+    const workShifts = [];
+    while (workShiftsStmt.step()) workShifts.push(workShiftsStmt.getAsObject());
+    workShiftsStmt.free();
+
+    const tasksCompletedStmt = db.prepare(`SELECT COUNT(*) as total FROM family_tasks WHERE owner_id IN (${placeholders}) AND completed = 1`);
+    tasksCompletedStmt.bind([...accessibleIds]);
+    tasksCompletedStmt.step();
+    const tasksCompleted = tasksCompletedStmt.getAsObject();
+    tasksCompletedStmt.free();
+
     const chatData = {
       summary,
       allTimeSummary,
@@ -6332,7 +6520,20 @@ app.post('/api/chat', async (req, res) => {
       tasks,
       shoppingLists,
       shoppingItems,
-      transactions
+      transactions,
+      members,
+      habits,
+      savingsPigs,
+      savingsGoals,
+      pets,
+      recipes,
+      birthdays,
+      anniversaries,
+      books,
+      movies,
+      mealPlans,
+      workShifts,
+      tasksCompleted: tasksCompleted?.total || 0
     };
 
     response = generateFamilyResponse(message, chatData);
@@ -6610,7 +6811,7 @@ app.delete('/api/chat/llm/history', (req, res) => {
 
 function generateFamilyResponse(message, chatData) {
   const msg = message.toLowerCase();
-  const { summary = {}, allTimeSummary = {}, byConcept = [], notes = [], tasks = [], shoppingItems = [], transactions = [] } = chatData;
+  const { summary = {}, allTimeSummary = {}, byConcept = [], notes = [], tasks = [], shoppingItems = [], transactions = [], members = [], habits = [], savingsPigs = [], savingsGoals = [], pets = [], recipes = [], birthdays = [], anniversaries = [], books = [], movies = [], mealPlans = [], workShifts = [], tasksCompleted = 0 } = chatData;
   
   const income = summary.income || 0;
   const expense = summary.expense || 0;
@@ -6628,18 +6829,12 @@ function generateFamilyResponse(message, chatData) {
   };
 
   if (msg.includes('hola') || msg.includes('buenas') || msg.includes('hello') || msg.includes('hey')) {
-    let reply = `¡Hola! Soy el asistente IA de Family Agent. Puedo ayudarte a buscar en:\n\n📝 Notas\n🛒 Lista de la compra\n💰 Contabilidad (gastos e ingresos)\n\nEste mes:
-- Ingresos: ${income.toFixed(2)}€
-- Gastos: ${expense.toFixed(2)}€
-- Balance: ${balance.toFixed(2)}€`;
+    let reply = `¡Hola! Soy Family Agent. Puedo ayudarte con:\n🏠 FAMILIA 💰 FINANZAS 📝 NOTAS 🛒 COMPRAS\n📋 TAREAS 🐾 MASCOTAS 📚 ENTRETENIMIENTO\n💰 AHORROS 📅 PLANIFICACIÓN 💼 TRABAJO\n🎂 EVENTOS\n\nEste mes: Ingresos ${income.toFixed(2)}€ | Gastos ${expense.toFixed(2)}€`;
 
-    if (tasks.length > 0) {
-      reply += `\n\n📋 Tienes ${tasks.length} tarea(s) pendiente(s).`;
-    }
-    if (shoppingItems.length > 0) {
-      reply += `\n🛒 Lista de la compra: ${shoppingItems.length} producto(s).`;
-    }
-    reply += '\n\n¿Qué quieres buscar?';
+    if (tasks.length > 0) reply += `\n📋 ${tasks.length} tareas`;
+    if (shoppingItems.length > 0) reply += ` | 🛒 ${shoppingItems.length} productos`;
+    if (members.length > 0) reply += ` | 👨‍👩‍👧 ${members.length} miembros`;
+    reply += '\n\n¿Qué buscas?';
     return reply;
   }
 
@@ -6734,40 +6929,94 @@ Total acumulado:
     return '📋 No hay transacciones registradas.';
   }
 
-  if (msg.includes('ayuda') || msg.includes('qué puedes') || msg.includes('que puedes')) {
-    return `🤖 Puedo ayudarte con:
+  if (msg.includes('miembro') || msg.includes('familia')) {
+    if (members.length > 0) return `👨‍👩‍👧 Familia (${members.length}):\n\n${members.map(m => `• ${m.name}`).join('\n')}`;
+    return '👨‍👩‍👧 Sin miembros.';
+  }
 
-📝 NOTAS:
-- "buscar nota [término]"
-- "mis notas"
-- "últimas notas"
+  if (msg.includes('cumple') || msg.includes('birthday')) {
+    if (birthdays.length > 0) return `🎂 Cumples:\n\n${birthdays.map(b => `• ${b.name}: ${b.date}`).join('\n')}`;
+    return '🎂 Sin cumple pronto.';
+  }
 
-🛒 LISTA DE LA COMPRA:
-- "qué hay en la lista"
-- "buscar producto [nombre]"
-- "lista de compra"
+  if (msg.includes('aniversary') || msg.includes('aniversario')) {
+    if (anniversaries.length > 0) return `💍 Aniversarios:\n\n${anniversaries.map(a => `• ${a.name}: ${a.date}`).join('\n')}`;
+    return '💍 Sin aniverarios.';
+  }
 
-💰 CONTABILIDAD:
-- "gastos del mes"
-- "ingresos"
-- "balance"
-- "gastos por concepto"
-- "buscar gasto [término]"
-- "últimas transacciones"
-- "transacciones de [concepto]"
+  if (msg.includes('habito') || msg.includes('hábito')) {
+    if (habits.length > 0) return `✅ Hábitos (${habits.length}):\n\n${habits.map(h => `• ${h.name}`).join('\n')}`;
+    return '✅ Sin hábitos.';
+  }
 
-📋 TAREAS:
-- "tareas pendientes"
-- "qué tareas tengo"
+  if (msg.includes('ahorro') || msg.includes('cerdito')) {
+    if (savingsPigs.length > 0) {
+      let reply = `🐷 Cerdos (${savingsPigs.length}):\n\n${savingsPigs.map(p => `• ${p.name}`).join('\n')}`;
+      if (savingsGoals.length > 0) reply += `\n\n💰 Metas:\n\n${savingsGoals.map(g => `• ${g.name}: ${g.current_amount || 0}€ / ${g.target_amount || 0}€`).join('\n')}`;
+      return reply;
+    }
+    return '🐷 Sin ahorros.';
+  }
 
-Ejemplos: "buscar nota reunion", "gastos de comida", "últimos movimientos"
+  if (msg.includes('mascota') || msg.includes('perro') || msg.includes('gato')) {
+    if (pets.length > 0) return `🐾 Mascotas (${pets.length}):\n\n${pets.map(p => `• ${p.name} (${p.species})`).join('\n')}`;
+    return '🐾 Sin mascotas.';
+  }
+
+  if (msg.includes('receta') || msg.includes('cocina')) {
+    if (recipes.length > 0) return `🍳 Recetas (${recipes.length}):\n\n${recipes.slice(0, 10).map(r => `• ${r.name}`).join('\n')}`;
+    return '🍳 Sin recetas.';
+  }
+
+  if (msg.includes('libro') || msg.includes('lectura')) {
+    if (books.length > 0) return `📚 Libros (${books.length}):\n\n${books.slice(0, 10).map(b => `• ${b.title}`).join('\n')}`;
+    return '📚 Sin libros.';
+  }
+
+  if (msg.includes('pelicula') || msg.includes('película') || msg.includes('serie')) {
+    if (movies.length > 0) return `🎬 Películas (${movies.length}):\n\n${movies.slice(0, 10).map(m => `• ${m.title}`).join('\n')}`;
+    return '🎬 Sin películas.';
+  }
+
+  if (msg.includes('menu') || msg.includes('menú')) {
+    if (mealPlans.length > 0) return `📅 Comidas (${mealPlans.length}):\n\n${mealPlans.slice(0, 10).map(m => `• ${m.day_of_week}: ${m.meal_type}`).join('\n')}`;
+    return '📅 Sin plan.';
+  }
+
+  if (msg.includes('trabajo') || msg.includes('turno') || msg.includes('hora')) {
+    const workedHours = workShifts.reduce((sum, w) => sum + (w.hours_worked || 0), 0);
+    return `💼 Turnos: ${workShifts.length}, Horas: ${workedHours.toFixed(1)}h`;
+  }
+
+  if (msg.includes('ayuda') || msg.includes('qué puedes') || msg.includes('help')) {
+    return `🤖 Puedo ayudarte:
+
+💰 "gastos", "ingresos", "balance"
+📝 "mis notas", "buscar nota"
+🛒 "lista", "comprar"
+📋 "tareas"
+👨‍👩‍👧 "miembros"
+🎂 "cumpleaños", "aniversario"
+🐾 "mascotas"
+💰 "ahorros", "cerdito"
+📚 "libros", "películas"
+🍳 "recetas"
+💼 "horas", "turnos"
+📊 "resumen", "todo"
 `;
   }
 
-  return `📊 Resumen rápido:\n\nEste mes:
+  return `📊 Resumen:\n\nESTE MES:
 - Ingresos: ${income.toFixed(2)}€
 - Gastos: ${expense.toFixed(2)}€
-- Balance: ${balance.toFixed(2)}€\n\n📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos | 📝 ${notes.length} notas\n\n💡 Prueba: "ayuda" para ver todo lo que puedo buscar`;
+- Balance: ${balance.toFixed(2)}€
+
+DATOS:
+📋 ${tasks.length} tareas | 🛒 ${shoppingItems.length} productos
+📝 ${notes.length} notas | 👨‍👩‍👧 ${members.length} miembros
+🐾 ${pets.length} mascotas | 💰 ${savingsGoals.length} metas
+
+💡 "ayuda" para todo lo que puedo buscar`;
 }
 
 async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], anniversaries = [], startDateParam = null, endDateParam = null) {
@@ -8304,13 +8553,20 @@ await initDb();
     const { module_key, hidden } = req.body;
     if (!module_key) return res.status(400).json({ error: 'module_key requerido' });
     
-    const upsertStmt = db.prepare(`
-      INSERT INTO global_module_settings (module_key, hidden, hidden_at, updated_at)
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-      ON CONFLICT(module_key) DO UPDATE SET hidden = ?, hidden_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-    `);
-    upsertStmt.run([module_key, hidden ? 1 : 0, hidden ? new Date().toISOString() : null, hidden ? 1 : 0]);
-    upsertStmt.free();
+    const checkStmt = db.prepare('SELECT id FROM global_module_settings WHERE module_key = ?');
+    checkStmt.bind([module_key]);
+    const exists = checkStmt.step();
+    checkStmt.free();
+    
+    if (exists) {
+      const updateStmt = db.prepare('UPDATE global_module_settings SET hidden = ?, hidden_at = ?, updated_at = CURRENT_TIMESTAMP WHERE module_key = ?');
+      updateStmt.run([hidden ? 1 : 0, hidden ? new Date().toISOString() : null, module_key]);
+      updateStmt.free();
+    } else {
+      const insertStmt = db.prepare('INSERT INTO global_module_settings (module_key, hidden, hidden_at, created_at, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)');
+      insertStmt.run([module_key, hidden ? 1 : 0, hidden ? new Date().toISOString() : null]);
+      insertStmt.free();
+    }
     
     saveDb();
     res.json({ success: true, module_key, hidden });
@@ -8413,6 +8669,31 @@ app.get('/api/gallery/albums', (req, res) => {
   stmt.free();
 
   res.json(albums);
+});
+
+app.post('/api/gallery/albums', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { name } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'El nombre del álbum es obligatorio' });
+  }
+
+  const albumName = name.trim();
+  const existingStmt = db.prepare('SELECT album FROM family_gallery WHERE owner_id = ? AND LOWER(album) = LOWER(?)');
+  existingStmt.bind([userId, albumName]);
+  const exists = existingStmt.step();
+  existingStmt.free();
+
+  if (!exists) {
+    const insertStmt = db.prepare('INSERT INTO family_gallery (owner_id, title, description, album, created_at) VALUES (?, ?, ?, ?, ?)');
+    insertStmt.run([userId, 'Placeholder', '', albumName, new Date().toISOString()]);
+    insertStmt.free();
+    saveDb();
+  }
+
+  res.json({ success: true, name: albumName });
 });
 
 app.delete('/api/gallery/albums/:name', (req, res) => {

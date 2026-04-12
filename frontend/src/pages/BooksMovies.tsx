@@ -59,6 +59,7 @@ export function BooksMovies() {
   useEffect(() => {
     fetchBooks();
     fetchMovies();
+    fetchCustomGenres();
   }, []);
 
   const fetchBooks = async () => {
@@ -72,6 +73,21 @@ export function BooksMovies() {
     try {
       const res = await fetch(`${API_URL}/api/movies`, { headers: getAuthHeaders() });
       if (res.ok) setMovies(await res.json());
+    } catch (e) { console.error(e); }
+  };
+
+  const fetchCustomGenres = async () => {
+    try {
+      const bookRes = await fetch(`${API_URL}/api/genres/book`, { headers: getAuthHeaders() });
+      const movieRes = await fetch(`${API_URL}/api/genres/movie`, { headers: getAuthHeaders() });
+      if (bookRes.ok) {
+        const bookGenres = await bookRes.json();
+        setCustomBookGenres(bookGenres.map((g: any) => g.name));
+      }
+      if (movieRes.ok) {
+        const movieGenres = await movieRes.json();
+        setCustomMovieGenres(movieGenres.map((g: any) => g.name));
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -178,15 +194,24 @@ export function BooksMovies() {
   const allGenres = activeTab === 'books' 
     ? [...DEFAULT_BOOK_GENRES, ...customBookGenres] 
     : [...DEFAULT_MOVIE_GENRES, ...customMovieGenres];
-  const genres = [...new Set(allGenres)];
+  const genres = [...new Set(allGenres)].sort((a, b) => a.localeCompare(b, 'es'));
 
-  const handleAddGenre = () => {
+  const handleAddGenre = async () => {
     if (!newGenre.trim()) return;
-    if (activeTab === 'books') {
-      setCustomBookGenres([...customBookGenres, newGenre.trim()]);
-    } else {
-      setCustomMovieGenres([...customMovieGenres, newGenre.trim()]);
-    }
+    const genreType = activeTab === 'books' ? 'book' : 'movie';
+    const newGenreName = newGenre.trim();
+    try {
+      await fetch(`${API_URL}/api/genres`, {
+        method: 'POST',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: genreType, name: newGenreName })
+      });
+      if (activeTab === 'books') {
+        setCustomBookGenres([...customBookGenres, newGenreName].sort((a, b) => a.localeCompare(b, 'es')));
+      } else {
+        setCustomMovieGenres([...customMovieGenres, newGenreName].sort((a, b) => a.localeCompare(b, 'es')));
+      }
+    } catch (e) { console.error(e); }
     setNewGenre('');
     setShowGenreModal(false);
   };

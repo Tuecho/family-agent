@@ -120,11 +120,16 @@ export function AdminPage() {
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
       const isHidden = hiddenModules.includes(moduleKey);
-      await fetch(`${API_URL}/api/admin/modules/hide`, {
+      const response = await fetch(`${API_URL}/api/admin/modules/hide`, {
         method: 'PUT',
         headers,
         body: JSON.stringify({ module_key: moduleKey, hidden: !isHidden })
       });
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        alert(data.error || 'Error al guardar');
+        return;
+      }
       setHiddenModules(isHidden ? hiddenModules.filter(m => m !== moduleKey) : [...hiddenModules, moduleKey]);
       localStorage.setItem('profile_refresh', Date.now().toString());
       window.dispatchEvent(new Event('profile_updated'));

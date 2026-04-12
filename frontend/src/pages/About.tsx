@@ -4,7 +4,7 @@ import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-const version = '1.0.8';
+const version = '1.0.9';
 
 const shareText = 'Echa un vistazo a Family Agent, una aplicación para gestionar las finanzas familiares. ¡Increíble!';
 const shareUrl = 'https://github.com/Tuecho/family-agent';
@@ -25,6 +25,16 @@ const shareX = () => {
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}`, '_blank');
 };
 const features = [
+  { version: '1.0.9', date: 'Abril 2026', changes: [
+    'Módulo Organización: Lugares interesantes (categorías, fotos, ubicación, notas)',
+    'Módulo Organización: Organización familiar (tareas domésticas, responsabilidades, rotaciones)',
+    'Módulo Educación: Control de horas trabajadas / freelance',
+    'Módulo Finanzas: Exportación de informes financieros a PDF',
+    'Módulo Contabilidad: Vista por categorías con gráficos interactivos',
+    'Chat IA mejorado con historial de conversaciones',
+    'Panel de administración: gestión de usuarios y módulos del sistema',
+    'Mejoras en rendimiento y tiempos de carga'
+  ]},
   { version: '1.0.8', date: 'Abril 2026', changes: [
     'Dashboard siempre visible (no se puede desactivar)',
     '7 módulos activos por defecto: Dashboard, Agenda, Contabilidad, Cumpleaños, Hábitos, Lista Compra, Notas, Tareas',

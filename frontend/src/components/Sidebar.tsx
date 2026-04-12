@@ -219,7 +219,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
             </button>
           </li>
           
-          {getModuleOrder().filter(key => key !== 'dashboard').map((moduleKey) => {
+          {getModuleOrder().filter(key => key !== 'dashboard' && key !== 'terms' && key !== 'privacy' && key !== 'about' && key !== 'howitworks' && key !== 'sales').map((moduleKey) => {
             const module = moduleMap[moduleKey];
             if (!module) return null;
             const Icon = module.icon;
@@ -244,25 +244,27 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
             )}
           </li>
 
-          <li>
-            <button
-              onClick={() => onNavigate('modules')}
-              className={navItemClasses('modules')}
-              title={isExpanded ? undefined : 'Módulos'}
-            >
-              <Settings size={18} />
-              {isExpanded && <span className="text-sm font-medium">Módulos</span>}
-            </button>
-          </li>
-          {!globalHiddenModules.includes('terms') && (
+          {!globalHiddenModules.includes('about') && (
             <li>
               <button
-                onClick={() => onNavigate('terms')}
-                className={navItemClasses('terms')}
-                title={isExpanded ? undefined : 'Términos'}
+                onClick={() => onNavigate('about')}
+                className={navItemClasses('about')}
+                title={isExpanded ? undefined : 'Acerca de'}
               >
-                <FileText size={18} />
-                {isExpanded && <span className="text-sm font-medium">Términos</span>}
+                <Info size={18} />
+                {isExpanded && <span className="text-sm font-medium">Acerca de</span>}
+              </button>
+            </li>
+          )}
+          {!globalHiddenModules.includes('howitworks') && (
+            <li>
+              <button
+                onClick={() => onNavigate('howitworks')}
+                className={navItemClasses('howitworks')}
+                title={isExpanded ? undefined : 'Cómo funciona'}
+              >
+                <BookOpen size={18} />
+                {isExpanded && <span className="text-sm font-medium">Cómo funciona</span>}
               </button>
             </li>
           )}
@@ -278,6 +280,40 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
               </button>
             </li>
           )}
+          {!globalHiddenModules.includes('terms') && (
+            <li>
+              <button
+                onClick={() => onNavigate('terms')}
+                className={navItemClasses('terms')}
+                title={isExpanded ? undefined : 'Términos'}
+              >
+                <FileText size={18} />
+                {isExpanded && <span className="text-sm font-medium">Términos</span>}
+              </button>
+            </li>
+          )}
+          {!globalHiddenModules.includes('sales') && (
+            <li>
+              <button
+                onClick={() => onNavigate('sales')}
+                className={navItemClasses('sales')}
+                title={isExpanded ? undefined : 'Ventas'}
+              >
+                <DollarSign size={18} />
+                {isExpanded && <span className="text-sm font-medium">Ventas</span>}
+              </button>
+            </li>
+          )}
+          <li>
+            <button
+              onClick={() => onNavigate('modules')}
+              className={navItemClasses('modules')}
+              title={isExpanded ? undefined : 'Módulos'}
+            >
+              <Settings size={18} />
+              {isExpanded && <span className="text-sm font-medium">Módulos</span>}
+            </button>
+          </li>
 
           {/* Divider */}
           <li className="pt-2 pb-1">

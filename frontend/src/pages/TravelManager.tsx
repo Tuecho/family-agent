@@ -206,6 +206,7 @@ export function TravelManager() {
   };
 
   const upcomingTrips = trips.filter(t => t.start_date && new Date(t.start_date) >= new Date());
+  const pastTrips = trips.filter(t => !t.start_date || new Date(t.start_date) < new Date());
   const totalBudget = trips.reduce((sum, t) => sum + (t.budget || 0), 0);
 
   return (
@@ -355,6 +356,203 @@ export function TravelManager() {
               </div>
             </div>
           )}
+
+          {pastTrips.length > 0 && (
+            <div>
+              <h2 className="font-semibold text-gray-700 mb-3">Viajes anteriores</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pastTrips.map((trip) => (
+                  <div key={trip.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 opacity-75">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-gray-100 text-gray-500">
+                          <MapPin size={18} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-800">{trip.name}</h3>
+                          <p className="text-sm text-gray-500">{trip.destination || 'Destino por definir'}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingTrip(trip);
+                            setTripForm({
+                              name: trip.name,
+                              destination: trip.destination || '',
+                              start_date: trip.start_date || '',
+                              end_date: trip.end_date || '',
+                              budget: trip.budget?.toString() || '',
+                              flights_booked: trip.flights_booked || false,
+                              hotels_booked: trip.hotels_booked || false,
+                              activities_planned: trip.activities_planned || false,
+                              notes: trip.notes || '',
+                            });
+                            setShowTripForm(true);
+                          }}
+                          className="p-1.5 text-gray-400 hover:text-[var(--color-primary)] rounded-lg hover:bg-gray-100"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteTrip(trip.id)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-lg hover:bg-gray-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <Calendar size={14} className="text-gray-400" />
+                        <span className="text-gray-600">
+                          {formatDate(trip.start_date)} - {formatDate(trip.end_date)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trip.flights_booked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <Plane size={12} />
+                        {trip.flights_booked ? 'Vuelos OK' : 'Sin vuelos'}
+                      </span>
+                      <span className={`flex items-center gap-1 text-xs px-2 py-1 rounded-full ${trip.hotels_booked ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                        <Hotel size={12} />
+                        {trip.hotels_booked ? 'Hotel OK' : 'Sin hotel'}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => openChecklistModal(trip.id, trip.name)}
+                        className="flex-1 py-2 text-sm text-[var(--color-primary)] hover:bg-[var(--color-primary)]/5 rounded-lg border border-[var(--color-primary)]"
+                      >
+                        Equipaje
+                      </button>
+                      <button
+                        onClick={() => { setSelectedTrip(trip.id); setSelectedTripName(trip.name); setShowActivityModal(true); }}
+                        className="flex-1 py-2 text-sm text-white bg-purple-500 hover:bg-purple-600 rounded-lg"
+                      >
+                        Actividades
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showTripForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-800">{editingTrip ? 'Editar viaje' : 'Nuevo viaje'}</h2>
+              <button onClick={resetTripForm} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleTripSubmit} className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del viaje *</label>
+                <input
+                  type="text"
+                  required
+                  value={tripForm.name}
+                  onChange={(e) => setTripForm({ ...tripForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Ej: Vacaciones verano 2024"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Destino</label>
+                <input
+                  type="text"
+                  value={tripForm.destination}
+                  onChange={(e) => setTripForm({ ...tripForm, destination: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Ej: Mallorca"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha inicio</label>
+                  <input
+                    type="date"
+                    value={tripForm.start_date}
+                    onChange={(e) => setTripForm({ ...tripForm, start_date: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha fin</label>
+                  <input
+                    type="date"
+                    value={tripForm.end_date}
+                    onChange={(e) => setTripForm({ ...tripForm, end_date: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Presupuesto (€)</label>
+                <input
+                  type="number"
+                  value={tripForm.budget}
+                  onChange={(e) => setTripForm({ ...tripForm, budget: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Ej: 1500"
+                />
+              </div>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={tripForm.flights_booked}
+                    onChange={(e) => setTripForm({ ...tripForm, flights_booked: e.target.checked })}
+                    className="w-4 h-4 rounded"
+                  />
+                  Vuelos reservados
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={tripForm.hotels_booked}
+                    onChange={(e) => setTripForm({ ...tripForm, hotels_booked: e.target.checked })}
+                    className="w-4 h-4 rounded"
+                  />
+                  Hotel reservado
+                </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea
+                  value={tripForm.notes}
+                  onChange={(e) => setTripForm({ ...tripForm, notes: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  rows={3}
+                  placeholder="Notas adicionales..."
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  className="flex-1 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90"
+                >
+                  {editingTrip ? 'Guardar cambios' : 'Crear viaje'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetTripForm}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

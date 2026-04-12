@@ -61,6 +61,10 @@ interface SharedUser {
   share_utility_bills: number;
   share_family_library: number;
   share_extra_school: number;
+  share_interesting_places: number;
+  share_family_organization: number;
+  share_anniversaries: number;
+  share_work_hours: number;
 }
 
 interface SharePreferences {
@@ -89,6 +93,10 @@ interface SharePreferences {
   share_utility_bills: boolean;
   share_family_library: boolean;
   share_extra_school: boolean;
+  share_interesting_places: boolean;
+  share_family_organization: boolean;
+  share_anniversaries: boolean;
+  share_work_hours: boolean;
 }
 
 export function Profile() {
@@ -145,6 +153,10 @@ export function Profile() {
     share_utility_bills: true,
     share_family_library: true,
     share_extra_school: true,
+    share_interesting_places: true,
+    share_family_organization: true,
+    share_anniversaries: true,
+    share_work_hours: true,
   });
 
   useEffect(() => {
@@ -238,6 +250,10 @@ export function Profile() {
           share_utility_bills: true,
           share_family_library: true,
           share_extra_school: true,
+          share_interesting_places: true,
+          share_family_organization: true,
+          share_anniversaries: true,
+          share_work_hours: true,
         });
         fetchInvitations();
       } else {
@@ -298,6 +314,10 @@ export function Profile() {
       share_utility_bills: !!share.share_utility_bills,
       share_family_library: !!share.share_family_library,
       share_extra_school: !!share.share_extra_school,
+      share_interesting_places: !!share.share_interesting_places,
+      share_family_organization: !!share.share_family_organization,
+      share_anniversaries: !!share.share_anniversaries,
+      share_work_hours: !!share.share_work_hours,
     });
     setShowShareModal(true);
   };
@@ -330,6 +350,10 @@ export function Profile() {
       share_utility_bills: true,
       share_family_library: true,
       share_extra_school: true,
+      share_interesting_places: true,
+      share_family_organization: true,
+      share_anniversaries: true,
+      share_work_hours: true,
     });
     setInviteUsername('');
     setAvailableUsers([]);
@@ -890,7 +914,7 @@ export function Profile() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Datos a compartir
                   </label>
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
                     {[
                       { key: 'share_dashboard', label: 'Dashboard', color: 'blue' },
                       { key: 'share_accounting', label: 'Contabilidad', color: 'green' },
@@ -917,6 +941,10 @@ export function Profile() {
                       { key: 'share_utility_bills', label: 'Facturas', color: 'yellow' },
                       { key: 'share_family_library', label: 'Biblioteca', color: 'indigo' },
                       { key: 'share_extra_school', label: 'Extraescolares', color: 'pink' },
+                      { key: 'share_interesting_places', label: 'Lugares de Interés', color: 'sky' },
+                      { key: 'share_family_organization', label: 'Organización Familiar', color: 'purple' },
+                      { key: 'share_anniversaries', label: 'Aniversarios', color: 'rose' },
+                      { key: 'share_work_hours', label: 'Horas de Trabajo', color: 'blue' },
                     ].map((item) => (
                       <label key={item.key} className="flex items-center gap-3 cursor-pointer">
                         <input

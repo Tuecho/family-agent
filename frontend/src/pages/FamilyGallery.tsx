@@ -123,16 +123,21 @@ export function FamilyGallery() {
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      console.log('Creating album with headers:', headers);
       const response = await fetch(`${API_URL}/api/gallery/albums`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ name: newAlbumName.trim() })
       });
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
 
       let data;
       try {
         data = await response.json();
+        console.log('Response data:', data);
       } catch (err) {
+        console.error('JSON parse error:', err);
         throw new Error('La respuesta del servidor no fue válida. El álbum podría haberse creado.');
       }
 
