@@ -2661,12 +2661,12 @@ app.get('/api/budgets/with-spending', (req, res) => {
   budgetsStmt.free();
   
   const transactionsStmt = db.prepare(`
-    SELECT concept, SUM(amount) as spent
+    SELECT LOWER(concept) as concept, SUM(amount) as spent
     FROM transactions
     WHERE type = 'expense'
       AND owner_id IN (${placeholders})
       AND date LIKE ?
-    GROUP BY concept
+    GROUP BY LOWER(concept)
   `);
   transactionsStmt.bind([...accessibleIds, `${String(year)}-${String(month).padStart(2, '0')}-%`]);
   
@@ -2679,9 +2679,9 @@ app.get('/api/budgets/with-spending', (req, res) => {
   
   const result = budgets.map(budget => ({
     ...budget,
-    spent: spending[budget.concept] || 0,
-    remaining: budget.amount - (spending[budget.concept] || 0),
-    percentage: Math.round(((spending[budget.concept] || 0) / budget.amount) * 100)
+    spent: spending[budget.concept.toLowerCase()] || 0,
+    remaining: budget.amount - (spending[budget.concept.toLowerCase()] || 0),
+    percentage: Math.round(((spending[budget.concept.toLowerCase()] || 0) / budget.amount) * 100)
   }));
   
   res.json(result);
@@ -8277,14 +8277,17 @@ async function sendUserNotification(userId, options = {}) {
     const year = notificationStart.getFullYear();
     const monthStr = String(month).padStart(2, '0');
 
+    const accessibleIds = getAccessibleUserIds(userId, 'share_budgets');
+    const placeholders = accessibleIds.map(() => '?').join(',');
+
     const budgetsStmt = db.prepare(`
       SELECT b.*, COALESCE(SUM(CASE WHEN t.type = 'expense' AND t.date LIKE ? THEN t.amount ELSE 0 END), 0) as spent
       FROM budgets b
-      LEFT JOIN transactions t ON LOWER(t.concept) = LOWER(b.concept) AND t.owner_id = b.owner_id
+      LEFT JOIN transactions t ON LOWER(t.concept) = LOWER(b.concept) AND t.owner_id IN (${placeholders})
       WHERE b.owner_id = ? AND b.month = ? AND b.year = ?
       GROUP BY b.id
     `);
-    budgetsStmt.bind([`${year}-${monthStr}%`, userId, month, year]);
+    budgetsStmt.bind([`${year}-${monthStr}%`, ...accessibleIds, userId, month, year]);
     const budgets = [];
     while (budgetsStmt.step()) {
       budgets.push(budgetsStmt.getAsObject());
