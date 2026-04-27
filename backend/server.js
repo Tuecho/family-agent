@@ -10,7 +10,10 @@ import multer from 'multer';
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 import webpush from 'web-push';
 const cron = pkg;
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }
+});
 
 // VAPID keys for web push notifications
 // Generate your own keys with: npx web-push generate-vapid-keys
@@ -285,6 +288,12 @@ try {
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_enabled INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_bot_token TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_chat_id TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_notify_time TEXT DEFAULT '22:00'`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_notify_events INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_notify_tasks INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_notify_budgets INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_notify_meals INTEGER DEFAULT 1`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_notify_birthdays INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN whatsapp_phone_id TEXT`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN whatsapp_token TEXT`); } catch(e) {}
@@ -3514,10 +3523,14 @@ app.post('/api/import/db', upload.single('file'), async (req, res) => {
   }
   
   try {
+    console.log('[Import DB] File received:', req.file.originalname, 'size:', req.file.size);
+    
     const backupDb = new (await initSqlJs()).Database(req.file.buffer);
+    console.log('[Import DB] Backup DB opened successfully');
     
     const tables = ALL_TABLES;
     let importedCount = 0;
+    let errors = [];
     
     for (const table of tables) {
       try {
@@ -3534,17 +3547,22 @@ app.post('/api/import/db', upload.single('file'), async (req, res) => {
             stmt.run(row);
             stmt.free();
             importedCount++;
-          } catch (e) {}
+          } catch (e) {
+            errors.push(`Error en ${table}: ${e.message}`);
+          }
         }
-      } catch (e) {}
+      } catch (e) {
+        errors.push(`Error leyendo tabla ${table}: ${e.message}`);
+      }
     }
     
     backupDb.close();
     saveDb();
-    res.json({ success: true, message: `Base de datos importada. ${importedCount} registros insertados.` });
+    console.log('[Import DB] Import complete. Count:', importedCount);
+    res.json({ success: true, message: `Base de datos importada. ${importedCount} registros insertados.`, errors: errors.slice(0, 5) });
   } catch (error) {
-    console.error('Error importing database:', error);
-    res.status(500).json({ error: 'Error importando la base de datos' });
+    console.error('[Import DB] Error:', error.message, error.stack);
+    res.status(500).json({ error: 'Error importando la base de datos: ' + error.message });
   }
 });
 
@@ -7418,9 +7436,16 @@ DATOS:
 💡 "ayuda" para todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], anniversaries = [], indulgences = [], startDateParam = null, endDateParam = null) {
-  if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
-    return { success: false, reason: 'Email notifications not configured' };
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], anniversaries = [], indulgences = [], startDateParam = null, endDateParam = null, options = {}) {
+  const notifyEvents = options.notify_events ?? settings?.notify_events ?? 1;
+  const notifyTasks = options.notify_tasks ?? settings?.notify_tasks ?? 1;
+  const notifyBudgets = options.notify_budgets ?? settings?.notify_budgets ?? 1;
+  const notifyMeals = options.notify_meals ?? settings?.notify_meals ?? 1;
+  const notifyBirthdays = options.notify_birthdays ?? settings?.notify_birthdays ?? 1;
+
+  const emailConfigured = settings?.email_enabled && settings?.email_to && settings?.smtp_user && settings?.smtp_password;
+  if (!emailConfigured) {
+    console.log('[sendNotificationEmail] Email not configured, generating content only for Telegram/WhatsApp');
   }
 
   const profileData = profile || { name: 'Usuario', family_name: 'Mi Familia' };
@@ -7523,12 +7548,6 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
 
   let htmlContent;
   let textContent;
-
-  const notifyEvents = settings?.notify_events !== 0;
-  const notifyTasks = settings?.notify_tasks !== 0;
-  const notifyBudgets = settings?.notify_budgets !== 0;
-  const notifyMeals = settings?.notify_meals !== 0;
-  const notifyBirthdays = settings?.notify_birthdays !== 0;
 
   const hasEvents = notifyEvents && events.length > 0;
   const hasBudgets = notifyBudgets && budgets && budgets.length > 0;
@@ -8070,8 +8089,9 @@ async function sendWhatsAppNotification(userId, text) {
 
 async function runDailyNotification() {
   try {
-    const usersStmt = db.prepare('SELECT owner_id, notify_time, notify_timezone FROM notification_settings WHERE email_enabled = 1 OR telegram_enabled = 1 OR whatsapp_enabled = 1');
-    const usersToNotify = [];
+    const usersStmt = db.prepare('SELECT owner_id, notify_time, notify_timezone, telegram_enabled, telegram_notify_time FROM notification_settings WHERE email_enabled = 1 OR telegram_enabled = 1 OR whatsapp_enabled = 1');
+    const usersToNotifyEmail = [];
+    const usersToNotifyTelegram = [];
     const now = new Date();
     
     console.log(`[Notification] Checking ${usersStmt.getAffectedRows} user(s) at ${now.toISOString()}`);
@@ -8092,10 +8112,14 @@ async function runDailyNotification() {
         const minute = parts.find(p => p.type === 'minute').value;
         const userLocalTime = `${hour}:${minute}`;
         
-        console.log(`[Notification] User ${settings.owner_id}: Local Time: ${userLocalTime}, Notify Time: ${settings.notify_time}`);
+        if (settings.email_enabled && userLocalTime === settings.notify_time) {
+          console.log(`[Notification] User ${settings.owner_id}: Email time MATCH (${settings.notify_time})`);
+          usersToNotifyEmail.push(settings.owner_id);
+        }
         
-        if (userLocalTime === settings.notify_time) {
-          usersToNotify.push(settings.owner_id);
+        if (settings.telegram_enabled && settings.telegram_notify_time && userLocalTime === settings.telegram_notify_time) {
+          console.log(`[Notification] User ${settings.owner_id}: Telegram time MATCH (${settings.telegram_notify_time})`);
+          usersToNotifyTelegram.push(settings.owner_id);
         }
       } catch (err) {
         console.error(`Error checking timezone ${tz} for user ${settings.owner_id}:`, err);
@@ -8103,15 +8127,23 @@ async function runDailyNotification() {
     }
     usersStmt.free();
 
-    for (const userId of usersToNotify) {
-      console.log(`[Notification] MATCH! Sending scheduled notification to user ${userId}`);
-      const emailResult = await sendUserNotification(userId);
+    for (const userId of usersToNotifyEmail) {
+      console.log(`[Notification] Email notification for user ${userId}`);
+      const emailResult = await sendUserNotification(userId, { isEmail: true });
       console.log('[Notification] emailResult:', emailResult);
       const summaryText = emailResult?.textContent || 'Tu resumen diario está listo. ¡Entra en la app para verlo!';
       console.log('[Notification] summaryText length:', summaryText?.length);
       await sendPushNotification(userId, 'Family Agent', 'Tu resumen diario está listo', '/');
-      await sendTelegramNotification(userId, summaryText);
       await sendWhatsAppNotification(userId, summaryText);
+    }
+
+    for (const userId of usersToNotifyTelegram) {
+      console.log(`[Notification] Telegram notification for user ${userId}`);
+      const telegramResult = await sendUserNotification(userId, { isTelegram: true });
+      console.log('[Notification] telegramResult:', telegramResult);
+      const summaryText = telegramResult?.textContent || 'Tu resumen diario está listo. ¡Entra en la app para verlo!';
+      console.log('[Notification] Telegram summaryText length:', summaryText?.length);
+      await sendTelegramNotification(userId, summaryText);
     }
   } catch (error) {
     console.error('Error in daily notification dispatcher:', error);
@@ -8172,13 +8204,47 @@ async function sendPushNotification(userId, title, body, url = '/') {
   }
 }
 
-async function sendUserNotification(userId) {
+async function sendUserNotification(userId, options = {}) {
   try {
+    console.log('[sendUserNotification] userId:', userId, 'options:', options);
     const settingsStmt = db.prepare('SELECT * FROM notification_settings WHERE owner_id = ?');
     settingsStmt.bind([userId]);
     let settings = null;
     if (settingsStmt.step()) settings = settingsStmt.getAsObject();
     settingsStmt.free();
+    console.log('[sendUserNotification] settings:', settings);
+
+    if (!settings) {
+      console.log('[sendUserNotification] No settings found, creating default');
+      settings = {
+        notify_events: 1,
+        notify_tasks: 1,
+        notify_budgets: 1,
+        notify_meals: 1,
+        notify_birthdays: 1,
+        telegram_notify_events: 1,
+        telegram_notify_tasks: 1,
+        telegram_notify_budgets: 1,
+        telegram_notify_meals: 1,
+        telegram_notify_birthdays: 1
+      };
+    }
+
+    let notifyEvents, notifyTasks, notifyBudgets, notifyMeals, notifyBirthdays;
+    if (options.isTelegram) {
+      notifyEvents = settings.telegram_notify_events ?? 1;
+      notifyTasks = settings.telegram_notify_tasks ?? 1;
+      notifyBudgets = settings.telegram_notify_budgets ?? 1;
+      notifyMeals = settings.telegram_notify_meals ?? 1;
+      notifyBirthdays = settings.telegram_notify_birthdays ?? 1;
+    } else {
+      notifyEvents = settings.notify_events ?? 1;
+      notifyTasks = settings.notify_tasks ?? 1;
+      notifyBudgets = settings.notify_budgets ?? 1;
+      notifyMeals = settings.notify_meals ?? 1;
+      notifyBirthdays = settings.notify_birthdays ?? 1;
+    }
+    console.log('[sendUserNotification] notify settings:', { notifyEvents, notifyTasks, notifyBudgets, notifyMeals, notifyBirthdays });
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -8422,9 +8488,24 @@ async function sendUserNotification(userId) {
       .filter(task => task.daysUntilDue < 100)
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, maintenanceTasks, anniversaries, indulgences, tomorrow, nextWeek);
+    const notificationOptions = {
+      notify_events: notifyEvents,
+      notify_tasks: notifyTasks,
+      notify_budgets: notifyBudgets,
+      notify_meals: notifyMeals,
+      notify_birthdays: notifyBirthdays
+    };
+
+    const filteredEvents = notifyEvents ? expandedEvents : [];
+    const filteredTasks = notifyTasks ? tasks : [];
+    const filteredBudgets = notifyBudgets ? budgets : [];
+    const filteredMealPlans = notifyMeals ? mealPlans : [];
+    const filteredBirthdays = notifyBirthdays ? birthdays : [];
+
+    return await sendNotificationEmail(settings, filteredEvents, filteredBudgets, profile, filteredTasks, filteredMealPlans, members, filteredBirthdays, maintenanceTasks, anniversaries, indulgences, tomorrow, nextWeek, notificationOptions);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
+    return { success: false, reason: error.message };
   }
 }
 
@@ -8456,7 +8537,7 @@ app.get('/api/notifications/settings', (req, res) => {
   
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
-  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, whatsapp_enabled, whatsapp_phone_id, whatsapp_token FROM notification_settings WHERE owner_id = ?');
+  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, telegram_notify_time, telegram_notify_events, telegram_notify_tasks, telegram_notify_budgets, telegram_notify_meals, telegram_notify_birthdays, whatsapp_enabled, whatsapp_phone_id, whatsapp_token FROM notification_settings WHERE owner_id = ?');
   stmt.bind([authUserId]);
   let settings = null;
   if (stmt.step()) settings = stmt.getAsObject();
@@ -8648,7 +8729,7 @@ app.post('/api/notifications/settings', (req, res) => {
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
 try {
-    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, whatsapp_enabled, whatsapp_phone_id, whatsapp_token } = req.body || {};
+    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, telegram_notify_time, telegram_notify_events, telegram_notify_tasks, telegram_notify_budgets, telegram_notify_meals, telegram_notify_birthdays, whatsapp_enabled, whatsapp_phone_id, whatsapp_token } = req.body || {};
 
     console.log('POST /api/notifications/settings - body:', JSON.stringify(req.body));
     console.log('POST /api/notifications/settings - smtp_password received:', !!smtp_password, 'length:', smtp_password?.length);
@@ -8698,6 +8779,12 @@ try {
           telegram_enabled = ?,
           telegram_bot_token = ?,
           telegram_chat_id = ?,
+          telegram_notify_time = ?,
+          telegram_notify_events = ?,
+          telegram_notify_tasks = ?,
+          telegram_notify_budgets = ?,
+          telegram_notify_meals = ?,
+          telegram_notify_birthdays = ?,
           whatsapp_enabled = ?,
           whatsapp_phone_id = ?,
           whatsapp_token = ?,
@@ -8724,6 +8811,12 @@ try {
         telegramEnabledToSave,
         telegramTokenToSave,
         telegramChatIdToSave,
+        telegram_notify_time || '22:00',
+        telegram_notify_events ?? 1,
+        telegram_notify_tasks ?? 1,
+        telegram_notify_budgets ?? 1,
+        telegram_notify_meals ?? 1,
+        telegram_notify_birthdays ?? 1,
         whatsapp_enabled ? 1 : 0,
         whatsapp_phone_id || null,
         whatsappTokenToSave,
@@ -8732,8 +8825,8 @@ try {
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, whatsapp_enabled, whatsapp_phone_id, whatsapp_token)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, telegram_notify_time, telegram_notify_events, telegram_notify_tasks, telegram_notify_budgets, telegram_notify_meals, telegram_notify_birthdays, whatsapp_enabled, whatsapp_phone_id, whatsapp_token)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
         authUserId,
@@ -8756,6 +8849,12 @@ try {
         telegramEnabledToSave,
         telegramTokenToSave,
         telegramChatIdToSave,
+        telegram_notify_time || '22:00',
+        telegram_notify_events ?? 1,
+        telegram_notify_tasks ?? 1,
+        telegram_notify_budgets ?? 1,
+        telegram_notify_meals ?? 1,
+        telegram_notify_birthdays ?? 1,
         whatsapp_enabled ? 1 : 0,
         whatsapp_phone_id || null,
         whatsappTokenToSave

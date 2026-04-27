@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, Loader2, Pencil, Filter, X, Settings, Upload, Check, AlertCircle, Download } from 'lucide-react';
+import { Plus, Trash2, Loader2, Pencil, Filter, X, Settings, Upload, Check, AlertCircle, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useStore } from '../store';
 import type { Transaction } from '../types';
 import { formatDateEs, formatMoneyEs } from '../utils/format';
@@ -7,7 +7,7 @@ import { ImportExcel } from '../components/ImportExcel';
 import { ImportPDF } from '../components/ImportPDF';
 
 export function Accounting() {
-  const { transactions, concepts, fetchConcepts, fetchTransactions, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, loading, selectedMonth, selectedYear, addConcept, updateConceptLabel, deleteConcept } = useStore();
+  const { transactions, concepts, fetchConcepts, fetchTransactions, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, loading, selectedMonth, selectedYear, addConcept, updateConceptLabel, deleteConcept, setSelectedMonthYear } = useStore();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [filterConcept, setFilterConcept] = useState<string>('all');
@@ -241,10 +241,53 @@ export function Accounting() {
     year: 'numeric'
   });
 
+  const changeMonth = (delta: number) => {
+    const d = new Date(selectedYear, selectedMonth - 1, 1);
+    d.setMonth(d.getMonth() + delta);
+    setSelectedMonthYear(d.getMonth() + 1, d.getFullYear());
+  };
+
+  const isCurrentMonth = () => {
+    const now = new Date();
+    return selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear();
+  };
+
   return (
     <div className="p-3 sm:p-4 md:p-8">
       <div className="flex items-center justify-between mb-4 sm:mb-6">
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Contabilidad</h2>
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800">Contabilidad</h2>
+          <div className="flex items-center gap-1 mt-2">
+            <button
+              onClick={() => changeMonth(-1)}
+              className="p-1 rounded hover:bg-gray-100"
+              title="Mes anterior"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <span className="px-2 font-medium text-gray-600 text-sm">
+              {monthLabel}
+            </span>
+            <button
+              onClick={() => changeMonth(1)}
+              className="p-1 rounded hover:bg-gray-100"
+              title="Mes siguiente"
+            >
+              <ChevronRight size={18} />
+            </button>
+            {!isCurrentMonth() && (
+              <button
+                onClick={() => {
+                  const now = new Date();
+                  setSelectedMonthYear(now.getMonth() + 1, now.getFullYear());
+                }}
+                className="ml-2 px-2 py-1 rounded text-xs border border-primary text-primary hover:bg-primary/5"
+              >
+                Hoy
+              </button>
+            )}
+          </div>
+        </div>
         {loading && <Loader2 className="animate-spin text-primary" size={20} />}
       </div>
 

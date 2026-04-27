@@ -75,7 +75,13 @@ export function AdminPage() {
   const [telegramSettings, setTelegramSettings] = useState({
     enabled: false,
     bot_token: '',
-    chat_id: ''
+    chat_id: '',
+    notify_time: '22:00',
+    notify_events: 1,
+    notify_tasks: 1,
+    notify_budgets: 1,
+    notify_meals: 1,
+    notify_birthdays: 1
   });
   const [telegramTokenInput, setTelegramTokenInput] = useState('');
   const [telegramSaving, setTelegramSaving] = useState(false);
@@ -154,7 +160,13 @@ export function AdminPage() {
       setTelegramSettings({
         enabled: data.telegram_enabled === 1,
         bot_token: data.has_telegram_token ? '' : (data.telegram_bot_token || ''),
-        chat_id: data.telegram_chat_id || ''
+        chat_id: data.telegram_chat_id || '',
+        notify_time: data.telegram_notify_time || '22:00',
+        notify_events: data.telegram_notify_events ?? 1,
+        notify_tasks: data.telegram_notify_tasks ?? 1,
+        notify_budgets: data.telegram_notify_budgets ?? 1,
+        notify_meals: data.telegram_notify_meals ?? 1,
+        notify_birthdays: data.telegram_notify_birthdays ?? 1
       });
       if (data.has_telegram_token) {
         setTelegramTokenInput('__saved__');
@@ -176,6 +188,12 @@ export function AdminPage() {
         body: JSON.stringify({
           telegram_enabled: telegramSettings.enabled ? 1 : 0,
           telegram_chat_id: telegramSettings.chat_id,
+          telegram_notify_time: telegramSettings.notify_time,
+          telegram_notify_events: telegramSettings.notify_events,
+          telegram_notify_tasks: telegramSettings.notify_tasks,
+          telegram_notify_budgets: telegramSettings.notify_budgets,
+          telegram_notify_meals: telegramSettings.notify_meals,
+          telegram_notify_birthdays: telegramSettings.notify_birthdays,
           ...tokenToSave
         })
       });
@@ -2148,9 +2166,72 @@ export function AdminPage() {
                       placeholder="123456789"
                       className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
-                    <p className="text-xs text-gray-500 mt-1">
+<p className="text-xs text-gray-500 mt-1">
                       Envía /start a @userinfobot o busca tu ID en @my_id_bot
                     </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Hora de envío
+                    </label>
+                    <input
+                      type="time"
+                      value={telegramSettings.notify_time}
+                      onChange={(e) => setTelegramSettings({ ...telegramSettings, notify_time: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </div>
+
+                  <div className="border-t pt-4 mt-4">
+                    <h4 className="font-medium text-gray-800 mb-3">Notificaciones a recibir</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={telegramSettings.notify_events === 1}
+                          onChange={(e) => setTelegramSettings({ ...telegramSettings, notify_events: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 rounded border-gray-300 text-primary"
+                        />
+                        <span className="text-sm">Eventos</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={telegramSettings.notify_tasks === 1}
+                          onChange={(e) => setTelegramSettings({ ...telegramSettings, notify_tasks: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 rounded border-gray-300 text-primary"
+                        />
+                        <span className="text-sm">Tareas</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={telegramSettings.notify_budgets === 1}
+                          onChange={(e) => setTelegramSettings({ ...telegramSettings, notify_budgets: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 rounded border-gray-300 text-primary"
+                        />
+                        <span className="text-sm">Presupuestos</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={telegramSettings.notify_meals === 1}
+                          onChange={(e) => setTelegramSettings({ ...telegramSettings, notify_meals: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 rounded border-gray-300 text-primary"
+                        />
+                        <span className="text-sm">Planes de comida</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={telegramSettings.notify_birthdays === 1}
+                          onChange={(e) => setTelegramSettings({ ...telegramSettings, notify_birthdays: e.target.checked ? 1 : 0 })}
+                          className="w-4 h-4 rounded border-gray-300 text-primary"
+                        />
+                        <span className="text-sm">Cumpleaños</span>
+                      </label>
+                    </div>
                   </div>
                 </>
               )}
