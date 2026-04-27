@@ -14,17 +14,12 @@ Aplicación web para la gestión de la economía familiar, agenda, tareas y plan
 6. [Configuración de Variables de Entorno](#configuración-de-variables-de-entorno)
 7. [Primer Inicio](#primer-inicio)
 8. [Páginas y Funcionalidades](#páginas-y-funcionalidades)
-   - [Dashboard](#dashboard)
-   - [Contabilidad](#contabilidad)
-   - [Presupuestos](#presupuestos)
-   - [Agenda](#agenda)
-   - [Tareas Familiares](#tareas-familiares)
-   - [Lista de la Compra](#lista-de-la-compra)
-   - [Notas](#notas)
-   - [Planificación de Comidas](#planificación-de-comidas)
-   - [Cumpleaños](#cumpleaños)
-   - [Premium](#premium)
-   - [Perfil](#perfil)
+   - [Core Modules](#core-modules)
+   - [Home Management](#home-management)
+   - [Finance](#finance)
+   - [Education](#education)
+   - [Lifestyle](#lifestyle)
+   - [System](#system)
 9. [Sistema de Tareas Programadas](#sistema-de-tareas-programadas)
    - [Notificaciones por Email](#notificaciones-por-email)
    - [Backup Automático](#backup-automático)
@@ -75,7 +70,8 @@ Aplicación web para la gestión de la economía familiar, agenda, tareas y plan
 - **Datos aislados**: Cada usuario tiene sus propios datos
 - **Primer usuario = administrador**: El primer usuario registrado se crea automáticamente como administrador
 - **Compartir datos**: Invita a otros usuarios a ver tus datos familiares
-- **Módulos habilitables**: Activa/desactiva módulos desde tu perfil (Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos)
+- **Módulos habilitables**: Activa/desactiva módulos desde tu perfil o gestor de módulos
+- **Gestor de módulos**: Arrastra y suelta para reordenar módulos activos
 
 ### Inteligencia Artificial
 - **Chatbot IA**: Asistente con Groq (LLaMA 3.3) para analizar tus finanzas
@@ -288,266 +284,87 @@ docker compose down
 
 ## Páginas y Funcionalidades
 
+La aplicación cuenta con **41 páginas** organizadas en módulos temáticos.
+
+### Core Modules (siempre visibles)
+
+| Módulo | Descripción |
+|--------|-------------|
+| Dashboard | Resumen mensual con gráficos y estadísticas |
+| Contabilidad | Gestión de ingresos y gastos |
+| Presupuestos | Límites mensuales por categoría |
+| Agenda | Eventos con soporte de recurrencia |
+| Tareas Familiares | Tareas asignables con prioridades |
+| Lista de Compra | Múltiples listas con colores |
+| Notas | Tableros y notas organizadas |
+| Cumpleaños | Recordatorio de cumpleaños |
+
+### Home Management
+
+| Módulo | Descripción |
+|--------|-------------|
+| Inventario del Hogar | Electrodomésticos con garantías y manuales |
+| Mantenimiento del Hogar | Tareas recurrentes (caldera, ITV, filtros) |
+| Gestor de Suscripciones | Control de Netflix, Spotify, gimnasio... |
+| Seguimiento de Mascotas | Vacunas, veterinario, medicación |
+
+### Finance
+
+| Módulo | Descripción |
+|--------|-------------|
+| Hucha Digital | Ahorro por objetivos con progreso visual |
+| Deudas Internas | Control de préstamos entre miembros |
+| Comparador de Facturas | Luz, agua, gas con detección de anomalías |
+
+### Education
+
+| Módulo | Descripción |
+|--------|-------------|
+| Biblioteca Familiar | Libros físicos y ebooks con seguimiento |
+| Extraescolares | Horarios, pagos, material necesario |
+
+### Lifestyle
+
+| Módulo | Descripción |
+|--------|-------------|
+| Seguimiento de Hábitos | Hábitos diarios/semanales con rachas |
+| Horas de Trabajo | Control de turnos y objetivos |
+| Planificación de Comidas | Recetas y menú semanal |
+| Gestor de Viajes | Viajes con checklist de equipaje |
+| Lugares de Interés | Sitios para visitar |
+| Restaurantes Favoritos | Valoración y notas |
+| Galería Familiar | Álbumes de fotos |
+| Aniversarios | Fechas especiales |
+| Regalos | Seguimiento de regalos |
+
+### System
+
+| Módulo | Descripción |
+|--------|-------------|
+| Perfil | Configuración, notificaciones, idioma |
+| Premium | Galería, contactos, libros/películas |
+| Chat IA | Asistente con Groq (LLaMA 3.3) |
+| Gestor de Módulos | Activar/desactivar y reordenar |
+| Panel Admin | Gestión de usuarios e invitaciones |
+
+---
+
 ### Dashboard
 
-Página principal que muestra un resumen de la situación familiar:
-
-- **Cita motivación**: Frase motivacional diaria
-- **Balance del mes**: Ingresos, gastos y balance
-- **Planes para hoy y mañana**: Eventos del día
-- **Tareas pendientes**: Las 5 tareas más urgentes (ordenadas por prioridad y fecha)
-- **Presupuestos del mes**: Estado de los presupuestos
-- **Evolución (6 meses)**: Gráfico de ingresos/gastos de los últimos 6 meses
-- **Cumpleaños del mes**: Próximos cumpleaños
-
-**Ubicación del código**: `frontend/src/pages/Dashboard.tsx`
-
-### Contabilidad
-
-Gestión de transacciones financieras:
-
-- **Registro de transacciones**: Ingresos y gastos
-- **Categorías**: Comida, alquiler, gasolina, servicios, ocio, etc.
-- **Filtros**: Por mes, año, tipo (ingreso/gasto)
-- **Importación**: Desde Excel (.xlsx) o CSV
-- **Importación de facturas PDF**: Extrae automáticamente concepto, cantidad y fecha
-
-**Ubicación del código**: `frontend/src/pages/Accounting.tsx`
-
-### Presupuestos
-
-Seguimiento de presupuestos mensuales:
-
-- **Presupuestos por categoría**: Gasolina, comida, alquiler, servicios, ocio, otros
-- **Estado visual**: Barra de progreso para cada categoría
-- **Comparación**: Lo gastado vs lo presupuesto
-
-**Ubicación del código**: `frontend/src/pages/Budgets.tsx`
-
-### Agenda
-
-Gestión de eventos familiares:
-
-- **Eventos**: Título, descripción, ubicación, hora
-- **Recurrencia**: Diario, semanal, mensual
-- **Eventos de varios días**: Fecha de inicio y fin
-- **Tipos**: Trabajo, familia, personal
-- **Compartir**: Con familiares
-
-**Ubicación del código**: `frontend/src/pages/Agenda.tsx`
-
-### Tareas Familiares
-
-Gestión de tareas familiares:
-
-- **Crear tareas**: Título, descripción, fecha límite, prioridad
-- **Prioridades**: Urgente, alta, normal, baja
-- **Asignar a miembro**: Asigna tareas a familiares
-- **Estado**: Pendiente/completada
-- **Filtrar**: Por estado, prioridad, asignatario
-
-**Ubicación del código**: `frontend/src/pages/FamilyTasks.tsx`
-
-### Lista de la Compra
-
-Gestión de listas de la compra:
-
-- **Múltiples listas**: Crea listas con nombre y color (ej: "Mercadona", "Compras semana")
-- **Productos**: Añadir, editar, eliminar, mover entre listas
-- **Compartir**: Envía por WhatsApp, Telegram, Email
-
-**Ubicación del código**: `frontend/src/pages/ShoppingList.tsx`
-
-### Notas
-
-Sistema de notas organizadas:
-
-- **Tableros**: Múltiples tableros con nombre y color
-- **Notas**: Título, contenido, categoría
-- **Categorías**: General, Trabajo, Familia, Personal, Importante
-- **Vistas**: Lista o cuadrícula
-- **Búsqueda**: Filtra por título o contenido
-- **Compartir**: Por WhatsApp, Telegram o copiar
-
-**Ubicación del código**: `frontend/src/pages/Notes.tsx`
-
-### Planificación de Comidas
-
-Planificación semanal de comidas:
-
-- **Recetas**: Crea y organiza recetas
-  - Categorías: Principal, Aperitivo, Postre, Bebida, Desayuno
-  - Tiempos de preparación y cocción
-  - Restricciones: Vegetariano, Vegano, Sin gluten, Sin lactosa
-  - Ingredientes e instrucciones
-- **Planificación semanal**: Arrastra y suelta recetas en el calendario
-- **Vista por días y tipos de comida**: Desayuno, comida, cena
-
-**Ubicación del código**: `frontend/src/pages/MealPlanning.tsx`
-
-### Cumpleaños
-
-Recordatorio de cumpleaños:
-
-- **Miembros de la familia**: Fecha de nacimiento
-- **Cumpleaños externos**: Contactos externos
-- **Próximos cumpleaños**: Lista ordenada
-
-**Ubicación del código**: `frontend/src/pages/Birthdays.tsx`
-
-### Premium
-
-Sección premium con funciones adicionales:
-
-- **Galería de fotos familiar**: 
-  - Álbumes para organizar fotos
-  - Subir fotos desde el dispositivo
-  - Vista en pantalla completa (lightbox)
-- **Contactos familiares**: Gestión de contactos
-- **Chat IA**: Asistente conversacional integrado
-- **Ventas**: Formulario de contacto comercial
-- **Libros y películas**: Seguimiento de lecturas y películas vistas
-
-**Ubicación del código**: `frontend/src/pages/Premium.tsx`
-
-### Perfil
-
-Configuración del usuario y la familia:
-
-- **Datos del perfil**: Nombre, nombre de familia, ciudad, moneda
-- **Configuración de notificaciones**: 
-  - Activar/desactivar emails
-  - Configurar SMTP (Gmail)
-  - Hora de envío
-  - Qué recibir: eventos, tareas, presupuestos, comidas, cumpleaños
-- **Módulos disponibles**: Activa/desactiva módulos (Mascotas, Educación, Cumpleaños, Contabilidad, Presupuestos)
-- **Compartir datos**: Permite que otros usuarios vean tus datos
-- **Cambiar contraseña**
-- **Idioma**: Español, Inglés, Portugués
-
-**Ubicación del código**: `frontend/src/pages/Profile.tsx`
-
----
-
-## Nuevos Módulos (v1.0.7)
-
-### Inventario del Hogar
-
-Gestión de electrodomésticos, muebles y electrónica:
-
-- **Artículos**: Nombre, categoría (electrodomésticos/muebles/electrónica), fecha de compra
-- **Garantía**: Fecha fin de garantía con alertas automáticas (por vencer/vencida)
-- **Manual**: URL del manual del fabricante
-- **Búsqueda y filtro**: Por nombre y categoría
-
-**Ubicación del código**: `frontend/src/pages/HomeInventory.tsx`
-
-### Mantenimiento del Hogar
-
-Seguimiento de tareas de mantenimiento recurrentes:
-
-- **Tipos**: Caldera, filtros A/C, ITV vehículo, otro
-- **Frecuencia**: Días entre cada mantenimiento
-- **Coste estimado**: Coste aproximado
-- **Estado**: Calcula días hasta próximo mantenimiento
-- **Alertas**: Tareas atrasadas y próximas a vencer
-
-**Ubicación del código**: `frontend/src/pages/HomeMaintenance.tsx`
-
-### Gestor de Suscripciones
-
-Control de suscripciones mensuales/anuales:
-
-- **Categorías**: Streaming, música, gimnasio, seguro, otro
-- **Importe y ciclo**: Precio y frecuencia de facturación
-- **Próxima facturación**: Fecha del próximo pago
-- **Resumen**: Gasto mensual y anual total
-- **Alertas**: Pagos próximos esta semana
-
-**Ubicación del código**: `frontend/src/pages/SubscriptionManager.tsx`
-
-### Seguimiento de Mascotas
-
-Gestión de mascotas familiares:
-
-- **Mascotas**: Nombre, especie, raza, fecha nacimiento, peso, microchip
-- **Vacunas**: Nombre, fecha, próxima dosis, veterinario
-- **Medicación**: Nombre, dosis, frecuencia, período de tratamiento
-
-**Ubicación del código**: `frontend/src/pages/PetTracker.tsx`
-
-### Gestor de Viajes
-
-Planificación de viajes y vacaciones:
-
-- **Viaje**: Nombre, destino, fechas, presupuesto
-- **Estado de reserva**: Vuelos, hotel, actividades
-- **Checklist de equipaje**: Por miembro familiar
-
-**Ubicación del código**: `frontend/src/pages/TravelManager.tsx`
-
-### Hucha Digital
-
-Ahorro por objetivos:
-
-- **Metas**: Nombre, objetivo, ahorrado actual, fecha objetivo
-- **Iconos**: Diferentes iconos por tipo de meta
-- **Progreso**: Barras de progreso visuales
-- **Contribuciones**: Añadir ahorro progresivamente
-
-**Ubicación del código**: `frontend/src/pages/SavingsGoals.tsx`
-
-### Deudas Internas
-
-Control de deudas entre miembros de la familia:
-
-- **Deudas**: De quién, a quién, cantidad, motivo
-- **Estado**: Activa/pagada
-- **Historial**: Registro de deudas pagadas
-
-**Ubicación del código**: `frontend/src/pages/InternalDebts.tsx`
-
-### Comparador de Facturas
-
-Seguimiento de facturas de servicios:
-
-- **Tipos**: Luz, agua, gas
-- **Historial**: Mes a mes con importe y consumo
-- **Comparación**: Vs mes anterior y media histórica
-- **Alertas**: Anomalías detectadas automáticamente (>30%)
-
-**Ubicación del código**: `frontend/src/pages/UtilityBills.tsx`
-
-### Biblioteca Familiar
-
-Gestión de libros familiares:
-
-- **Libros**: Título, autor, formato (físico/ebook), ISBN
-- **Estado**: Disponible, leyendo, leído
-- **Propietario**: Quién tiene el libro
-- **Valoración**: Estrellas (1-5)
-
-**Ubicación del código**: `frontend/src/pages/FamilyLibrary.tsx`
-
-### Extraescolares
-
-Gestión de actividades extraescolares:
-
-- **Actividad**: Nombre del niño, actividad (música, deporte...)
-- **Horario y ubicación**: Día/hora y lugar
-- **Profesor**: Nombre y contacto
-- **Coste**: Precio mensual y día de pago
-- **Material**: Material necesario
-
-**Ubicación del código**: `frontend/src/pages/ExtraSchoolManager.tsx`
-
----
-
-## Sistema de Tareas Programadas
+Página principal con resumen familiar:
+
+- **Balance del mes**: Ingresos, gastos y balance con gráfico donut
+- **Evolución (6 meses)**: Gráfico de tendencia
+- **Eventos de hoy/mañana**: Próximos eventos
+- **Tareas urgentes**: Las 5 más importantes
+- **Presupuestos**: Estado de gastos
+- **Cumpleaños**: Próximos del mes
+- **Cita motivacional**: Frase diaria
+
+### Notificaciones por Email
 
 El backend incluye tareas programadas usando `node-cron`:
 
-### Notificaciones por Email
 
 **Ubicación**: `backend/server.js` líneas 4892-5089
 
@@ -623,16 +440,11 @@ Los usuarios pueden compartir sus datos con familiares:
 
 1. Ve a **Perfil** → **Compartir datos**
 2. Selecciona qué quieres compartir:
-   - Contabilidad
-   - Presupuestos
-   - Agenda
-   - Tareas
-   - Notas
-   - Miembros de la familia
-   - Listas de la compra
-   - Recetas
-   - Restaurantes
-   - Galería
+   - Dashboard, Contabilidad, Presupuestos, Agenda, Tareas, Notas
+   - Shopping, Contacts, Recipes, Restaurants, Gallery
+   - Habits, Home Inventory, Maintenance, Subscriptions
+   - Pet Tracker, Travel, Savings Goals, Debts, Bills
+   - Library, Extra School, Places, Anniversaries, Work Hours
 3. Selecciona el usuario con quien compartir
 4. El usuario receptor verá los datos compartidos en su instalación
 
@@ -679,6 +491,12 @@ Los usuarios pueden compartir sus datos con familiares:
 - Botón de cerrar sesión más accesible en móvil
 - Backup incluye todos los nuevos módulos
 - Nueva página de Módulos en el menú lateral
+- Módulo de Seguimiento de Hábitos completo
+- Módulo de Horas de Trabajo
+- Módulo de Lugares de Interés
+- Módulo de Organización Familiar
+- Notificaciones push web (web-push)
+- Mejoras en la importación de datos
 
 ### v1.0.7 (Abril 2026)
 - Módulo Hogar: Inventario del hogar con garantías y manuales

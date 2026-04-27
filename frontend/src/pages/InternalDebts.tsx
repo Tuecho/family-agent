@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, CheckCircle, Users, ArrowRight, DollarSign, History, X } from 'lucide-react';
+import { Plus, Trash2, CheckCircle, Users, ArrowRight, DollarSign, History, X, Edit2, RotateCcw } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import type { InternalDebt } from '../types';
 
@@ -17,6 +17,14 @@ export function InternalDebts() {
   const [showForm, setShowForm] = useState(false);
   const [showNewMember, setShowNewMember] = useState<string | false>(false);
   const [newMemberName, setNewMemberName] = useState('');
+  const [editingSettledDebt, setEditingSettledDebt] = useState<InternalDebt | null>(null);
+  const [editSettledAmount, setEditSettledAmount] = useState('');
+  const [editSettledReason, setEditSettledReason] = useState('');
+  const [editingDebt, setEditingDebt] = useState<InternalDebt | null>(null);
+  const [editFromMember, setEditFromMember] = useState('');
+  const [editToMember, setEditToMember] = useState('');
+  const [editAmount, setEditAmount] = useState('');
+  const [editReason, setEditReason] = useState('');
 
   const [formData, setFormData] = useState({
     from_member: '',
@@ -112,6 +120,78 @@ export function InternalDebts() {
     }
   };
 
+  const handleReopen = async (id: string) => {
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/finance/internal-debts/${id}/reopen`, { method: 'POST', headers });
+      fetchData();
+    } catch (error) {
+      console.error('Error reopening debt:', error);
+    }
+  };
+
+  const startEditSettled = (debt: InternalDebt) => {
+    setEditingSettledDebt(debt);
+    setEditSettledAmount(debt.amount.toString());
+    setEditSettledReason(debt.description || '');
+  };
+
+  const startEditActive = (debt: InternalDebt) => {
+    setEditingDebt(debt);
+    const fromMember = members.find(m => m.name === debt.from_member);
+    const toMember = members.find(m => m.name === debt.to_member);
+    setEditFromMember(fromMember ? String(fromMember.id) : '');
+    setEditToMember(toMember ? String(toMember.id) : '');
+    setEditAmount(debt.amount.toString());
+    setEditReason(debt.description || '');
+  };
+
+  const handleEditSettled = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSettledDebt) return;
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/finance/internal-debts/${editingSettledDebt.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          amount: parseFloat(editSettledAmount),
+          description: editSettledReason
+        })
+      });
+      setEditingSettledDebt(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error editing debt:', error);
+    }
+  };
+
+  const handleEditActive = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDebt) return;
+    if (!editFromMember || !editToMember) {
+      alert('Selecciona ambos miembros');
+      return;
+    }
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/finance/internal-debts/${editingDebt.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({
+          from_member_id: editFromMember,
+          to_member_id: editToMember,
+          amount: parseFloat(editAmount),
+          description: editReason
+        })
+      });
+      setEditingDebt(null);
+      fetchData();
+    } catch (error) {
+      console.error('Error editing debt:', error);
+    }
+  };
+
   const resetForm = () => {
     setShowForm(false);
     setFormData({ from_member: '', to_member: '', amount: '', reason: '' });
@@ -185,6 +265,13 @@ export function InternalDebts() {
                         <span className="text-sm text-gray-500">{debt.description}</span>
                       )}
                       <button
+                        onClick={() => startEditActive(debt)}
+                        className="p-2 text-gray-400 hover:text-primary rounded-lg hover:bg-gray-100"
+                        title="Editar"
+                      >
+                        <Edit2 size={18} />
+                      </button>
+                      <button
                         onClick={() => handleSettle(debt.id)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                         title="Marcar como pagado"
@@ -222,9 +309,25 @@ export function InternalDebts() {
                       <span>{debt.to_member}</span>
                       <span className="font-medium">{debt.amount}€</span>
                     </div>
-                    <span className="text-gray-400">
-                      {debt.settled_at ? new Date(debt.settled_at).toLocaleDateString('es-ES') : 'Pagado'}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">
+                        {debt.settled_at ? new Date(debt.settled_at).toLocaleDateString('es-ES') : 'Pagado'}
+                      </span>
+                      <button
+                        onClick={() => startEditSettled(debt)}
+                        className="p-1.5 text-gray-400 hover:text-primary hover:bg-white rounded transition-colors"
+                        title="Editar"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={() => handleReopen(debt.id)}
+                        className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-white rounded transition-colors"
+                        title="Reabrir como pendiente"
+                      >
+                        <RotateCcw size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -361,6 +464,145 @@ export function InternalDebts() {
                     className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
                   >
                     Crear
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingSettledDebt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-gray-800">Editar deuda archivada</h2>
+                <button onClick={() => setEditingSettledDebt(null)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleEditSettled} className="space-y-4">
+                <div className="text-sm text-gray-500 mb-4">
+                  {editingSettledDebt.from_member} → {editingSettledDebt.to_member}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={editSettledAmount}
+                    onChange={(e) => setEditSettledAmount(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
+                  <input
+                    type="text"
+                    value={editSettledReason}
+                    onChange={(e) => setEditSettledReason(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    placeholder="Cena, Cine..."
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSettledDebt(null)}
+                    className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingDebt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg font-bold text-gray-800">Editar deuda</h2>
+                <button onClick={() => setEditingDebt(null)} className="text-gray-400 hover:text-gray-600">
+                  <X size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleEditActive} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">¿Quién debe?</label>
+                  <select
+                    value={editFromMember}
+                    onChange={(e) => setEditFromMember(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">¿A quién debe?</label>
+                  <select
+                    value={editToMember}
+                    onChange={(e) => setEditToMember(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    required
+                  >
+                    <option value="">Seleccionar...</option>
+                    {members.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (€)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Motivo</label>
+                  <input
+                    type="text"
+                    value={editReason}
+                    onChange={(e) => setEditReason(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-200 rounded-lg"
+                    placeholder="Cena, Cine..."
+                  />
+                </div>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingDebt(null)}
+                    className="flex-1 px-4 py-2 border border-gray-200 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="flex-1 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+                  >
+                    Guardar
                   </button>
                 </div>
               </form>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users, Cake, Gift, Film, CheckCircle, Package, Wrench, CreditCard, Dog, Plane, PiggyBank, TrendingUp, Zap, Library, GraduationCap, Calendar, Settings, Clock, MapPin, CalendarHeart } from 'lucide-react';
+import { Home, Wallet, Target, User, Shield, Info, StickyNote, ShoppingCart, ListChecks, LogOut, Crown, UtensilsCrossed, BookOpen, FileText, ShieldCheck, Mail, ChefHat, Image, ChevronDown, ChevronRight, Bot, DollarSign, Users, Cake, Gift, Film, CheckCircle, Package, Wrench, CreditCard, Dog, Plane, PiggyBank, TrendingUp, Zap, Library, GraduationCap, Calendar, Settings, Clock, MapPin, CalendarHeart, Heart } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -12,8 +12,8 @@ interface Profile {
 }
 
 interface SidebarProps {
-  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization';
-  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization') => void;
+  activePage: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization' | 'indulgences';
+  onNavigate: (page: 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization' | 'indulgences') => void;
   onLogout?: () => void;
   isAdmin?: boolean;
   isMobile?: boolean;
@@ -67,7 +67,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     };
   }, []);
 
-  const defaultModules = ['dashboard', 'agenda', 'accounting', 'budgets', 'birthdays', 'anniversaries', 'habits', 'shopping', 'notes', 'tasks', 'meals', 'gifts', 'restaurants', 'books_movies', 'chatbot', 'sales', 'interesting_places', 'family_organization', 'home_inventory', 'home_maintenance', 'subscriptions', 'pet_tracker', 'travel_manager', 'savings_goals', 'internal_debts', 'utility_bills', 'family_library', 'extra_school', 'work_hours', 'howitworks', 'about', 'terms', 'privacy'];
+  const defaultModules = ['dashboard', 'agenda', 'accounting', 'budgets', 'birthdays', 'anniversaries', 'habits', 'shopping', 'notes', 'tasks', 'meals', 'gifts', 'restaurants', 'books_movies', 'chatbot', 'sales', 'interesting_places', 'family_organization', 'indulgences', 'home_inventory', 'home_maintenance', 'subscriptions', 'pet_tracker', 'travel_manager', 'savings_goals', 'internal_debts', 'utility_bills', 'family_library', 'extra_school', 'work_hours', 'howitworks', 'about', 'terms', 'privacy'];
 
   const isModuleEnabled = (key: string) => {
     if (key === 'dashboard') return true;
@@ -113,6 +113,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     sales: { page: 'sales', icon: DollarSign, label: 'Ventas' },
     interesting_places: { page: 'interesting_places', icon: MapPin, label: 'Lugares de Interés' },
     family_organization: { page: 'family_organization', icon: Users, label: 'Org. Familiar' },
+    indulgences: { page: 'indulgences', icon: Heart, label: 'Indulgencias' },
     howitworks: { page: 'howitworks', icon: BookOpen, label: 'Cómo funciona' },
     about: { page: 'about', icon: Info, label: 'Acerca de' },
     terms: { page: 'terms', icon: FileText, label: 'Términos' },
@@ -151,6 +152,7 @@ export function Sidebar({ activePage, onNavigate, onLogout, isAdmin, isMobile }:
     { key: 'sales', page: 'sales', icon: DollarSign, label: 'Ventas' },
     { key: 'interesting_places', page: 'interesting_places', icon: MapPin, label: 'Lugares de Interés' },
     { key: 'family_organization', page: 'family_organization', icon: Users, label: 'Org. Familiar' },
+    { key: 'indulgences', page: 'indulgences', icon: Heart, label: 'Indulgencias' },
     { key: 'howitworks', page: 'howitworks', icon: BookOpen, label: 'Cómo funciona' },
     { key: 'about', page: 'about', icon: Info, label: 'Acerca de' },
     { key: 'terms', page: 'terms', icon: FileText, label: 'Términos' },

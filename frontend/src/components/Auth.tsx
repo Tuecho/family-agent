@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useRef } from 'react';
 import { Lock, Eye, EyeOff, User, UserPlus, X, Check, Clock, Shield, AlertCircle, Home } from 'lucide-react';
+import { getAuthHeaders } from '../utils/auth';
 
 const STORAGE_KEY = 'family_agent_auth';
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -763,6 +764,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const logout = useCallback(() => {
+    const stored = getStoredAuth();
+    if (stored.authenticated) {
+      fetch(`${API_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: getAuthHeaders()
+      }).catch(() => {});
+    }
     localStorage.removeItem(STORAGE_KEY);
     localStorage.removeItem('lastPage');
     setIsAuthenticated(false);

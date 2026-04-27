@@ -36,13 +36,93 @@ const ALL_TABLES = [
   'pet_tracker', 'pet_vaccines', 'pet_medications',
   'travel_manager', 'trip_members', 'trip_activities', 'savings_pigs', 'savings_goals', 
   'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
-  'work_shifts', 'work_settings', 'interesting_places', 'anniversaries',
+  'work_shifts', 'work_settings', 'interesting_places', 'anniversaries', 'indulgences',
   'password_reset_codes', 'app_settings', 'notification_settings', 'global_module_settings',
   'household_chores', 'chore_assignments', 'family_rewards', 'reward_earnings', 'member_points',
   'faqs', 'suggestions', 'contact_messages', 'sales_contacts'
 ];
 
+const BACKUP_DIR = path.join(process.cwd(), 'backups');
+const MAX_BACKUPS = 10;
+
 let db;
+
+function ensureBackupDir() {
+  if (!existsSync(BACKUP_DIR)) {
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  }
+}
+
+function createBackup() {
+  return new Promise((resolve, reject) => {
+    try {
+      ensureBackupDir();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = path.join(BACKUP_DIR, `backup_${timestamp}.db`);
+      
+      const data = db.export();
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(backupPath, buffer);
+      
+      const stats = fs.statSync(backupPath);
+      
+      const files = fs.readdirSync(BACKUP_DIR)
+        .filter(f => f.startsWith('backup_') && f.endsWith('.db'))
+        .map(f => ({
+          name: f,
+          path: path.join(BACKUP_DIR, f),
+          created: fs.statSync(path.join(BACKUP_DIR, f)).birthtime
+        }))
+        .sort((a, b) => b.created - a.created);
+      
+      if (files.length > MAX_BACKUPS) {
+        files.slice(MAX_BACKUPS).forEach(f => {
+          fs.unlinkSync(f.path);
+        });
+      }
+      
+      console.log(`Backup created: ${backupPath}`);
+      resolve({ success: true, path: backupPath, size: stats.size });
+    } catch (err) {
+      console.error('Backup error:', err);
+      reject(err);
+    }
+  });
+}
+
+async function restoreBackup(backupFilename) {
+  const backupPath = path.join(BACKUP_DIR, backupFilename);
+  if (!existsSync(backupPath)) {
+    throw new Error('Backup not found');
+  }
+  
+  const buffer = readFileSync(backupPath);
+  db.close();
+  
+  const SQL = await initSqlJs();
+  db = new SQL.Database(buffer);
+  
+  const currentDbFile = path.join(process.cwd(), DB_FILE);
+  const data = db.export();
+  fs.writeFileSync(currentDbFile, Buffer.from(data));
+  
+  return { success: true, restored: backupFilename };
+}
+
+function listBackups() {
+  ensureBackupDir();
+  return fs.readdirSync(BACKUP_DIR)
+    .filter(f => f.startsWith('backup_') && f.endsWith('.db'))
+    .map(f => {
+      const stats = fs.statSync(path.join(BACKUP_DIR, f));
+      return {
+        name: f,
+        size: stats.size,
+        created: stats.birthtime.toISOString()
+      };
+    })
+    .sort((a, b) => new Date(b.created) - new Date(a.created));
+}
 
 async function initDb() {
   const SQL = await initSqlJs();
@@ -111,9 +191,20 @@ async function initDb() {
       salt TEXT NOT NULL,
       is_admin INTEGER DEFAULT 0,
       status TEXT DEFAULT 'pending',
+      last_active TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+try {
+  db.run('ALTER TABLE auth_user ADD COLUMN last_active TEXT');
+} catch (e) {}
+try {
+  db.run('ALTER TABLE auth_user ADD COLUMN last_login TEXT');
+} catch (e) {}
+try {
+  db.run('ALTER TABLE auth_user ADD COLUMN last_logout TEXT');
+} catch (e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS password_reset_codes (
@@ -145,6 +236,23 @@ async function initDb() {
   `);
 
   db.run(`
+    CREATE TABLE IF NOT EXISTS llm_settings (
+      id INTEGER PRIMARY KEY,
+      provider TEXT DEFAULT 'groq',
+      api_key TEXT,
+      model TEXT DEFAULT 'llama-3.3-70b-versatile',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  
+  try {
+    const checkLlm = db.exec('SELECT COUNT(*) FROM llm_settings WHERE id = 1');
+    if (checkLlm.length === 0 || checkLlm[0].values[0][0] === 0) {
+      db.run("INSERT INTO llm_settings (id, provider, model) VALUES (1, 'groq', 'llama-3.3-70b-versatile')");
+    }
+  } catch(e) {}
+
+  db.run(`
     CREATE TABLE IF NOT EXISTS notification_settings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       owner_id INTEGER,
@@ -174,6 +282,12 @@ async function initDb() {
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN notify_birthdays INTEGER DEFAULT 1`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN push_enabled INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE notification_settings ADD COLUMN push_subscription TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_enabled INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_bot_token TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN telegram_chat_id TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN whatsapp_enabled INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN whatsapp_phone_id TEXT`); } catch(e) {}
+  try { db.run(`ALTER TABLE notification_settings ADD COLUMN whatsapp_token TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS family_events (
@@ -278,8 +392,11 @@ async function initDb() {
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_extra_school INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_interesting_places INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_anniversaries INTEGER DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE user_shares ADD COLUMN share_indulgences INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_family_organization INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE user_shares ADD COLUMN share_work_hours INTEGER DEFAULT 0`); } catch(e) {}
+
+  try { db.run(`ALTER TABLE travel_manager ADD COLUMN checklist TEXT DEFAULT '[]'`); } catch(e) {}
 
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_habits INTEGER DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE invitations ADD COLUMN share_family_organization INTEGER DEFAULT 0`); } catch(e) {}
@@ -370,9 +487,8 @@ async function initDb() {
 
   try { db.run(`ALTER TABLE family_notes ADD COLUMN board_id INTEGER`); } catch(e) {}
 
-  db.run(`DROP TABLE IF EXISTS favorite_restaurants`);
   db.run(`
-    CREATE TABLE favorite_restaurants (
+    CREATE TABLE IF NOT EXISTS favorite_restaurants (
       id TEXT PRIMARY KEY,
       owner_id INTEGER NOT NULL,
       name TEXT NOT NULL,
@@ -887,6 +1003,7 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       flights_booked INTEGER DEFAULT 0,
       hotels_booked INTEGER DEFAULT 0,
       activities_planned INTEGER DEFAULT 0,
+      checklist TEXT DEFAULT '[]',
       notes TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -916,6 +1033,17 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       booked INTEGER DEFAULT 0,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (trip_id) REFERENCES travel_manager(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS packing_lists (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      items TEXT DEFAULT '[]',
+      is_default INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
 
@@ -955,6 +1083,18 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       type TEXT NOT NULL,
       date TEXT NOT NULL,
       notes TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS indulgences (
+      id TEXT PRIMARY KEY,
+      owner_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      date TEXT NOT NULL,
+      type TEXT DEFAULT 'plenary',
+      description TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -1079,7 +1219,10 @@ function getCurrentUserId(headers) {
         foundUserId = stmt.getAsObject().id;
       }
       stmt.free();
-      if (foundUserId) return foundUserId;
+      if (foundUserId) {
+        db.run('UPDATE auth_user SET last_active = ? WHERE id = ?', [new Date().toISOString(), numericUserId]);
+        return foundUserId;
+      }
     }
   }
   
@@ -1091,6 +1234,9 @@ function getCurrentUserId(headers) {
       foundUserId = stmt.getAsObject().id;
     }
     stmt.free();
+    if (foundUserId) {
+      db.run('UPDATE auth_user SET last_active = ? WHERE username = ?', [new Date().toISOString(), username]);
+    }
     return foundUserId;
   }
   
@@ -1286,7 +1432,24 @@ app.post('/api/auth/login', (req, res) => {
   const computed = hashPassword(String(password), String(row.salt));
   if (computed !== String(row.password_hash)) return res.status(401).json({ error: 'Credenciales incorrectas' });
 
+  db.run('UPDATE auth_user SET last_active = ?, last_login = ? WHERE username = ?', [new Date().toISOString(), new Date().toISOString(), username.trim()]);
+
   return res.json({ success: true, isAdmin: !!row.is_admin, username: row.username, userId: row.id });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  const { username, userId } = req.headers || {};
+  
+  if (!username && !userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const userIdNum = parseInt(userId, 10);
+  if (userIdNum) {
+    db.run('UPDATE auth_user SET last_logout = ? WHERE id = ?', [new Date().toISOString(), userIdNum]);
+  } else if (username) {
+    db.run('UPDATE auth_user SET last_logout = ? WHERE username = ?', [new Date().toISOString(), username]);
+  }
+  
+  return res.json({ success: true });
 });
 
 app.post('/api/auth/register', (req, res) => {
@@ -1440,7 +1603,7 @@ app.get('/api/auth/admin/users', (req, res) => {
 
   if (!user || !user.is_admin) return res.status(403).json({ error: 'Solo administradores' });
 
-  const usersStmt = db.prepare('SELECT id, username, is_admin, status, created_at FROM auth_user ORDER BY created_at DESC');
+  const usersStmt = db.prepare('SELECT id, username, is_admin, status, created_at, last_login, last_logout FROM auth_user ORDER BY created_at DESC');
   const users = [];
   while (usersStmt.step()) {
     users.push(usersStmt.getAsObject());
@@ -1454,8 +1617,10 @@ app.get('/api/users', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
 
-  const usersStmt = db.prepare('SELECT id, username FROM auth_user WHERE status IN ("approved", "active") AND id != ? ORDER BY username');
-  usersStmt.bind([userId]);
+  const accessibleIds = getAccessibleUserIds(userId);
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  const usersStmt = db.prepare(`SELECT id, username FROM auth_user WHERE status IN ("approved", "active") AND id IN (${placeholders}) ORDER BY username`);
+  usersStmt.bind(accessibleIds);
   const users = [];
   while (usersStmt.step()) {
     users.push(usersStmt.getAsObject());
@@ -1530,15 +1695,35 @@ app.get('/api/auth/admin/stats', (req, res) => {
 
   const stats = { total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 };
 
-  const countStmt = db.prepare('SELECT status, COUNT(*) as count FROM auth_user GROUP BY status');
-  while (countStmt.step()) {
-    const row = countStmt.getAsObject();
-    stats.total += row.count;
-    if (row.status === 'approved') stats.active++;
-    else if (row.status === 'blocked') stats.blocked++;
-    else if (row.status === 'pending') stats.pending++;
-  }
-  countStmt.free();
+  const totalStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user');
+  totalStmt.step();
+  stats.total = totalStmt.getAsObject().count;
+  totalStmt.free();
+
+  const activeStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE status = ? OR status = ?');
+  activeStmt.bind(['approved', 'active']);
+  activeStmt.step();
+  stats.active = activeStmt.getAsObject().count;
+  activeStmt.free();
+
+  const blockedStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE status = ?');
+  blockedStmt.bind(['blocked']);
+  blockedStmt.step();
+  stats.blocked = blockedStmt.getAsObject().count;
+  blockedStmt.free();
+
+  const pendingStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE status = ?');
+  pendingStmt.bind(['pending']);
+  pendingStmt.step();
+  stats.pending = pendingStmt.getAsObject().count;
+  pendingStmt.free();
+
+  const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  const connectedStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE last_active > ? AND status IN ("approved", "active")');
+  connectedStmt.bind([fiveMinutesAgo]);
+  connectedStmt.step();
+  stats.connected = connectedStmt.getAsObject().count;
+  connectedStmt.free();
 
   const adminStmt = db.prepare('SELECT COUNT(*) as count FROM auth_user WHERE is_admin = 1');
   adminStmt.step();
@@ -1770,6 +1955,159 @@ app.put('/api/settings/login-image', (req, res) => {
     lockStmt.free();
   }
   
+  saveDb();
+  res.json({ success: true });
+});
+
+app.get('/api/settings/quotes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const stmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  stmt.bind(['dashboardQuotes']);
+  const result = stmt.step() ? stmt.getAsObject() : null;
+  stmt.free();
+
+  if (result && result.value) {
+    try {
+      const quotes = JSON.parse(result.value);
+      return res.json(quotes);
+    } catch (e) {
+      return res.json([]);
+    }
+  }
+  res.json([]);
+});
+
+app.post('/api/settings/quotes', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { username } = req.headers || {};
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  const { quote } = req.body;
+  if (!quote || !quote.trim()) return res.status(400).json({ error: 'La frase no puede estar vacía' });
+
+  const getStmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  getStmt.bind(['dashboardQuotes']);
+  const existing = getStmt.step() ? getStmt.getAsObject() : null;
+  getStmt.free();
+
+  let quotes = [];
+  if (existing && existing.value) {
+    try {
+      quotes = JSON.parse(existing.value);
+    } catch (e) {
+      quotes = [];
+    }
+  }
+
+  const newQuote = {
+    id: Date.now(),
+    text: quote.trim(),
+    created_at: new Date().toISOString()
+  };
+
+  quotes.push(newQuote);
+
+  const upsertStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  upsertStmt.run(['dashboardQuotes', JSON.stringify(quotes)]);
+  upsertStmt.free();
+
+  saveDb();
+  res.json({ success: true, quote: newQuote });
+});
+
+app.put('/api/settings/quotes/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { username } = req.headers || {};
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  const { id } = req.params;
+  const { quote } = req.body;
+
+  if (!quote || !quote.trim()) return res.status(400).json({ error: 'La frase no puede estar vacía' });
+
+  const getStmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  getStmt.bind(['dashboardQuotes']);
+  const existing = getStmt.step() ? getStmt.getAsObject() : null;
+  getStmt.free();
+
+  if (!existing || !existing.value) return res.status(404).json({ error: 'No encontradas' });
+
+  let quotes = [];
+  try {
+    quotes = JSON.parse(existing.value);
+  } catch (e) {
+    return res.status(500).json({ error: 'Error al parsear' });
+  }
+
+  const index = quotes.findIndex(q => String(q.id) === String(id));
+  if (index === -1) return res.status(404).json({ error: 'Frase no encontrada' });
+
+  quotes[index].text = quote.trim();
+  quotes[index].updated_at = new Date().toISOString();
+
+  const upsertStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  upsertStmt.run(['dashboardQuotes', JSON.stringify(quotes)]);
+  upsertStmt.free();
+
+  saveDb();
+  res.json({ success: true, quote: quotes[index] });
+});
+
+app.delete('/api/settings/quotes/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+
+  const { username } = req.headers || {};
+  const stmt = db.prepare('SELECT is_admin FROM auth_user WHERE username = ?');
+  stmt.bind([username]);
+  let admin = null;
+  if (stmt.step()) admin = stmt.getAsObject();
+  stmt.free();
+
+  if (!admin || !admin.is_admin) return res.status(403).json({ error: 'Solo administradores' });
+
+  const { id } = req.params;
+
+  const getStmt = db.prepare('SELECT value FROM app_settings WHERE key = ?');
+  getStmt.bind(['dashboardQuotes']);
+  const existing = getStmt.step() ? getStmt.getAsObject() : null;
+  getStmt.free();
+
+  if (!existing || !existing.value) return res.status(404).json({ error: 'No encontradas' });
+
+  let quotes = [];
+  try {
+    quotes = JSON.parse(existing.value);
+  } catch (e) {
+    return res.status(500).json({ error: 'Error al parsear' });
+  }
+
+  const filtered = quotes.filter(q => String(q.id) !== String(id));
+
+  if (filtered.length === quotes.length) return res.status(404).json({ error: 'Frase no encontrada' });
+
+  const upsertStmt = db.prepare('INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)');
+  upsertStmt.run(['dashboardQuotes', JSON.stringify(filtered)]);
+  upsertStmt.free();
+
   saveDb();
   res.json({ success: true });
 });
@@ -4036,6 +4374,56 @@ app.delete('/api/finance/internal-debts/:id', (req, res) => {
   res.json({ success: true });
 });
 
+app.put('/api/finance/internal-debts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { from_member_id, to_member_id, amount, description } = req.body;
+  
+  let sql = 'UPDATE internal_debts SET ';
+  const params = [];
+  
+  if (from_member_id) {
+    sql += 'from_member_id = ?, ';
+    params.push(from_member_id);
+  }
+  if (to_member_id) {
+    sql += 'to_member_id = ?, ';
+    params.push(to_member_id);
+  }
+  if (amount) {
+    sql += 'amount = ?, ';
+    params.push(amount);
+  }
+  if (description !== undefined) {
+    sql += 'description = ?, ';
+    params.push(description);
+  }
+  
+  sql = sql.replace(/, $/, ' ');
+  sql += 'WHERE id = ? AND owner_id = ?';
+  params.push(id, userId);
+  
+  const stmt = db.prepare(sql);
+  stmt.run(params);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.post('/api/finance/internal-debts/:id/reopen', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const stmt = db.prepare('UPDATE internal_debts SET settled_at = NULL WHERE id = ? AND owner_id = ?');
+  stmt.run([id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
 app.get('/api/birthdays', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -4255,6 +4643,10 @@ app.get('/api/work-hours/accumulated', (req, res) => {
   const weekOvertime = Math.max(0, weekHours - weeklyTarget);
   
   const newAccumulated = Math.max(0, currentAccumulated + weekOvertime);
+  
+  db.run('UPDATE work_settings SET accumulated_hours = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
+    [newAccumulated, userId]);
+  saveDb();
   
   res.json({
     weekly_target: weeklyTarget,
@@ -5802,7 +6194,7 @@ app.post('/api/invitations', (req, res) => {
     share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker,
     share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills,
     share_family_library, share_extra_school, share_interesting_places, share_family_organization,
-    share_anniversaries, share_work_hours
+    share_anniversaries, share_work_hours, share_indulgences
   } = req.body;
   if (!to_username) return res.status(400).json({ error: 'Falta el nombre de usuario' });
   
@@ -5837,8 +6229,8 @@ app.post('/api/invitations', (req, res) => {
   
   try {
     const inviteStmt = db.prepare(`
-      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits, share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker, share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills, share_family_library, share_extra_school, share_interesting_places, share_family_organization, share_anniversaries, share_work_hours)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invitations (from_user_id, to_username, share_dashboard, share_accounting, share_budgets, share_agenda, share_tasks, share_notes, share_shopping, share_contacts, share_recipes, share_restaurants, share_family_members, share_gifts, share_books, share_movies, share_habits, share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker, share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills, share_family_library, share_extra_school, share_interesting_places, share_family_organization, share_anniversaries, share_work_hours, share_indulgences)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     inviteStmt.run([
       userId, 
@@ -5872,6 +6264,7 @@ app.post('/api/invitations', (req, res) => {
       share_family_organization ? 1 : 0,
       share_anniversaries ? 1 : 0,
       share_work_hours ? 1 : 0,
+      share_indulgences ? 1 : 0,
     ]);
     inviteStmt.free();
     saveDb();
@@ -6008,13 +6401,13 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
     share_home_inventory, share_home_maintenance, share_subscriptions, share_pet_tracker,
     share_travel_manager, share_savings_goals, share_internal_debts, share_utility_bills,
     share_family_library, share_extra_school, share_interesting_places, share_family_organization,
-    share_anniversaries, share_work_hours
+    share_anniversaries, share_work_hours, share_indulgences
   } = req.body;
   
   try {
     db.run(`
       UPDATE user_shares 
-      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?, share_habits = ?, share_home_inventory = ?, share_home_maintenance = ?, share_subscriptions = ?, share_pet_tracker = ?, share_travel_manager = ?, share_savings_goals = ?, share_internal_debts = ?, share_utility_bills = ?, share_family_library = ?, share_extra_school = ?, share_interesting_places = ?, share_family_organization = ?, share_anniversaries = ?, share_work_hours = ?
+      SET share_dashboard = ?, share_accounting = ?, share_budgets = ?, share_agenda = ?, share_tasks = ?, share_notes = ?, share_shopping = ?, share_contacts = ?, share_recipes = ?, share_restaurants = ?, share_family_members = ?, share_gifts = ?, share_books = ?, share_movies = ?, share_habits = ?, share_home_inventory = ?, share_home_maintenance = ?, share_subscriptions = ?, share_pet_tracker = ?, share_travel_manager = ?, share_savings_goals = ?, share_internal_debts = ?, share_utility_bills = ?, share_family_library = ?, share_extra_school = ?, share_interesting_places = ?, share_family_organization = ?, share_anniversaries = ?, share_work_hours = ?, share_indulgences = ?
       WHERE owner_id = ? AND shared_with_id = ?
     `, [
       share_dashboard ? 1 : 0,
@@ -6046,6 +6439,7 @@ app.put('/api/shares/:sharedWithId', (req, res) => {
       share_family_organization ? 1 : 0,
       share_anniversaries ? 1 : 0,
       share_work_hours ? 1 : 0,
+      share_indulgences ? 1 : 0,
       userId,
       sharedWithId
     ]);
@@ -6647,11 +7041,16 @@ app.post('/api/chat/llm', async (req, res) => {
     return res.status(400).json({ error: 'Mensaje requerido' });
   }
 
-  // Get LLM settings
-  const settingsStmt = db.prepare('SELECT model FROM llm_settings WHERE id = 1');
-  settingsStmt.step();
-  const settings = settingsStmt.getAsObject();
-  settingsStmt.free();
+// Get LLM settings
+  let model = 'llama-3.3-70b-versatile';
+  try {
+    const settingsStmt = db.prepare('SELECT model FROM llm_settings WHERE id = 1');
+    if (settingsStmt.step()) {
+      const settings = settingsStmt.getAsObject();
+      if (settings.model) model = settings.model;
+    }
+    settingsStmt.free();
+  } catch(e) {}
 
   if (!GROQ_API_KEY) {
     return res.status(500).json({ error: 'GROQ_API_KEY no configurada. Configúrala en las variables de entorno.' });
@@ -6766,7 +7165,7 @@ ${familyContext}`;
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: settings.model || 'llama-3.3-70b-versatile',
+        model: model,
         messages: [
           { role: 'system', content: systemPrompt },
           ...history,
@@ -7019,7 +7418,7 @@ DATOS:
 💡 "ayuda" para todo lo que puedo buscar`;
 }
 
-async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], anniversaries = [], startDateParam = null, endDateParam = null) {
+async function sendNotificationEmail(settings, events, budgets, profile, tasks = [], mealPlans = [], members = [], birthdays = [], maintenanceTasks = [], anniversaries = [], indulgences = [], startDateParam = null, endDateParam = null) {
   if (!settings.email_enabled || !settings.email_to || !settings.smtp_user || !settings.smtp_password) {
     return { success: false, reason: 'Email notifications not configured' };
   }
@@ -7138,6 +7537,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const hasBirthdays = notifyBirthdays && birthdays && birthdays.length > 0;
   const hasMaintenance = maintenanceTasks && maintenanceTasks.length > 0;
   const hasAnniversaries = anniversaries && anniversaries.length > 0;
+  const hasIndulgences = indulgences && indulgences.length > 0;
 
   let budgetsSection = '';
   let budgetsText = '';
@@ -7149,6 +7549,8 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   let maintenanceText = '';
   let anniversariesSection = '';
   let anniversariesText = '';
+  let indulgencesSection = '';
+  let indulgencesText = '';
   if (hasBudgets) {
     const totalBudget = budgets.reduce((sum, b) => sum + b.amount, 0);
     const totalSpent = budgets.reduce((sum, b) => sum + (b.spent || 0), 0);
@@ -7325,6 +7727,38 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     `;
   }
 
+  if (hasIndulgences) {
+    indulgencesText = `🕊️ INDULGENCIAS PRÓXIMAS\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      indulgences.map(i => {
+        const daysText = i.daysUntil === 0 ? '¡HOY!' : (i.daysUntil === 1 ? 'Mañana' : `${i.daysUntil} días`);
+        const emoji = i.type === 'plenary' ? '⭐' : '✨';
+        return `${emoji} ${i.title} (${i.type === 'plenary' ? 'Plenaria' : 'Parcial'}): ${daysText}`;
+      }).join('\n');
+
+    indulgencesSection = `
+      <div style="background: #fffbeb; border-radius: 8px; padding: 16px; margin: 16px 0;">
+        <h3 style="margin: 0 0 16px 0; color: #b45309;">🕊️ Indulgencias Próximas (15 días)</h3>
+        <table style="width: 100%; font-size: 14px;">
+          <tbody>
+            ${indulgences.map(i => {
+              const daysText = i.daysUntil === 0 ? '¡HOY!' : (i.daysUntil === 1 ? 'Mañana' : `${i.daysUntil} días`);
+              const textColor = i.daysUntil <= 3 ? '#dc2626' : '#b45309';
+              const typeEmoji = i.type === 'plenary' ? '⭐' : '✨';
+              return `
+                <tr style="border-bottom: 1px solid #fde68a;">
+                  <td style="padding: 10px 0;">${typeEmoji}</td>
+                  <td style="padding: 10px 0; color: #111827;">${i.title}</td>
+                  <td style="padding: 10px 0; color: #6b7280;">${i.type === 'plenary' ? 'Plenaria' : 'Parcial'}</td>
+                  <td style="padding: 10px 0; text-align: right; font-weight: 600; color: ${textColor};">${daysText}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
   if (hasMaintenance) {
     maintenanceText = `🏠 MANTENIMIENTO DEL HOGAR\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       maintenanceTasks.map(t => {
@@ -7360,7 +7794,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   const dateRangeStr = `${notificationStart.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })} - ${notificationEnd.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
   if (!hasEvents) {
-    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\n${weatherText ? weatherText + '\n\n' : ''}No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n${maintenanceText ? '\n\n' + maintenanceText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nCon cari\u00f1o,\nFamily Agent 💕`;
+    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\n${weatherText ? weatherText + '\n\n' : ''}No hay planes para los pr\u00f3ximos 7 d\u00edas (${dateRangeStr}).\n${tasksText ? '\n\n' + tasksText : ''}\n${budgetsText ? '\n\n' + budgetsText : ''}\n${mealPlansText ? '\n\n' + mealPlansText : ''}\n${birthdaysText ? '\n\n' + birthdaysText : ''}\n${anniversariesText ? '\n\n' + anniversariesText : ''}\n${indulgencesText ? '\n\n' + indulgencesText : ''}\n${maintenanceText ? '\n\n' + maintenanceText : ''}\n\n\u00a1Que tengas un buen d\u00eda!\n\nCon cari\u00f1o,\nFamily Agent 💕`;
     htmlContent = `<!DOCTYPE html>
 <html>
 <head>
@@ -7375,7 +7809,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${weatherSection}
     <div style="padding: 20px;">
       <p style="color: #666; font-size: 14px; margin: 0 0 20px 0;">No hay planes para los próximos 7 días (${dateRangeStr}).</p>
-      ${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${anniversariesSection}${maintenanceSection}
+${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${anniversariesSection}${indulgencesSection}${maintenanceSection}
     </div>
     ${footerHtml}
   </div>
@@ -7422,7 +7856,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
       return `📅 ${dayName}\n  🕐 ${time}\n  ${type}${e.title}${location}`;
     }).join('\n\n');
 
-    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\n${weatherText ? weatherText + '\n\n' : ''}Tienes ${events.length} plan${events.length > 1 ? 'es' : ''} para los próximos 7 días (${dateRangeStr}):\n\n${eventsText}\n${tasksText ? '\n\n' + tasksText : ''}${budgetsText ? '\n\n' + budgetsText : ''}${mealPlansText ? '\n\n' + mealPlansText : ''}${birthdaysText ? '\n\n' + birthdaysText : ''}${maintenanceText ? '\n\n' + maintenanceText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
+    textContent = `Hola ${familyName},\n\n"${quoteOfTheDay}"\n\n${weatherText ? weatherText + '\n\n' : ''}Tienes ${events.length} plan${events.length > 1 ? 'es' : ''} para los próximos 7 días (${dateRangeStr}):\n\n${eventsText}\n${tasksText ? '\n\n' + tasksText : ''}${budgetsText ? '\n\n' + budgetsText : ''}${mealPlansText ? '\n\n' + mealPlansText : ''}${birthdaysText ? '\n\n' + birthdaysText : ''}${anniversariesText ? '\n\n' + anniversariesText : ''}${indulgencesText ? '\n\n' + indulgencesText : ''}${maintenanceText ? '\n\n' + maintenanceText : ''}\n\n¡Que tengas un buen día!\n\nCon cariño,\nFamily Agent 💕`;
 
     htmlContent = `<!DOCTYPE html>
 <html>
@@ -7437,7 +7871,7 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
     ${quoteHtml}
     ${weatherSection}
     <div style="padding: 20px;">
-      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${anniversariesSection}${maintenanceSection}
+      ${eventsHtml}${tasksSection}${budgetsSection}${mealPlansSection}${birthdaysSection}${anniversariesSection}${indulgencesSection}${maintenanceSection}
     </div>
     ${footerHtml}
   </div>
@@ -7464,18 +7898,24 @@ async function sendNotificationEmail(settings, events, budgets, profile, tasks =
   if (hasBudgets) subject += ` | 💰 Disponible: ${(budgets.reduce((sum, b) => sum + b.amount, 0) - budgets.reduce((sum, b) => sum + (b.spent || 0), 0)).toFixed(2)}€`;
 
   try {
-    await transporter.sendMail({
-      from: `"Family Agent" <${settings.smtp_user}>`,
-      to: settings.email_to,
-      subject: subject,
-      text: textContent,
-      html: htmlContent
-    });
-    console.log(`Email sent to ${settings.email_to}`);
-    return { success: true };
+    if (settings?.email_enabled && settings?.smtp_user && settings?.email_to) {
+      await transporter.sendMail({
+        from: `"Family Agent" <${settings.smtp_user}>`,
+        to: settings.email_to,
+        subject: subject,
+        text: textContent,
+        html: htmlContent
+      });
+      console.log(`Email sent to ${settings.email_to}`);
+    } else {
+      console.log(`Email not enabled for user ${userId}, skipping email but returning content for Telegram/WhatsApp`);
+    }
+    console.log(`[Notification] Generated textContent length: ${textContent?.length || 0}`);
+    return { success: true, textContent };
   } catch (error) {
     console.error('Error sending email:', error);
-    return { success: false, reason: error.message };
+    console.log(`[Notification] Error - textContent length: ${textContent?.length || 0}`);
+    return { success: false, reason: error.message, textContent };
   }
 }
 
@@ -7527,9 +7967,110 @@ function expandRecurringEvents(events, startDate, endDate) {
   return expanded.sort((a, b) => a.date.localeCompare(b.date) || (a.start_time || '').localeCompare(b.start_time || ''));
 }
 
+async function sendTelegramNotification(userId, text) {
+  try {
+    const stmt = db.prepare('SELECT telegram_enabled, telegram_bot_token, telegram_chat_id FROM notification_settings WHERE owner_id = ?');
+    stmt.bind([userId]);
+    let settings = null;
+    if (stmt.step()) settings = stmt.getAsObject();
+    stmt.free();
+    
+    console.log('[Telegram] Settings for user', userId, ':', settings);
+    
+    const telegramEnabled = settings?.telegram_enabled === 1 || (process.env.TELEGRAM_ENABLED === 'true' && settings?.telegram_enabled !== 0);
+    const dbToken = settings?.telegram_bot_token || '';
+    const dbChatId = settings?.telegram_chat_id || '';
+    const envToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    const envChatId = process.env.TELEGRAM_CHAT_ID || '';
+    
+    const token = dbToken.trim() || envToken.trim();
+    const chatId = dbChatId.trim() || envChatId.trim();
+    
+    if (!telegramEnabled) {
+      console.log(`[Telegram] Disabled for user ${userId}`);
+      return { success: false, reason: 'Telegram desactivado. Actívalo desde la configuración.' };
+    }
+    
+    if (!token || !chatId) {
+      return { success: false, reason: 'Token o Chat ID no configurado. Configúralo en .env o desde la web.' };
+    }
+    
+    const url = `https://api.telegram.org/bot${token}/sendMessage`;
+    console.log('[Telegram] Sending to:', url);
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: text,
+        parse_mode: 'HTML'
+      })
+    });
+    
+    const result = await response.json();
+    console.log('[Telegram] API response:', result);
+    
+    if (!result.ok) {
+      console.error('[Telegram] API error:', result.description);
+      return { success: false, reason: result.description };
+    }
+    
+    console.log(`[Telegram] Message sent to user ${userId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('[Telegram] Error:', error.cause?.message || error.message || error);
+    return { success: false, reason: 'Error de conexión. ¿Tienes token y Chat ID guardados?' };
+  }
+}
+
+async function sendWhatsAppNotification(userId, text) {
+  try {
+    const stmt = db.prepare('SELECT whatsapp_enabled, whatsapp_phone_id, whatsapp_token FROM notification_settings WHERE owner_id = ?');
+    stmt.bind([userId]);
+    let settings = null;
+    if (stmt.step()) settings = stmt.getAsObject();
+    stmt.free();
+    
+    if (!settings?.whatsapp_enabled || !settings?.whatsapp_phone_id || !settings?.whatsapp_token) {
+      console.log(`[WhatsApp] Not configured for user ${userId}`);
+      return { success: false, reason: 'WhatsApp not configured' };
+    }
+    
+    const { whatsapp_phone_id, whatsapp_token } = settings;
+    const url = `https://graph.facebook.com/v21.0/${whatsapp_phone_id}/messages`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${whatsapp_token}`
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to: whatsapp_phone_id,
+        type: 'text',
+        text: { body: text }
+      })
+    });
+    
+    const result = await response.json();
+    if (result.error) {
+      console.error('[WhatsApp] API error:', result.error.message);
+      return { success: false, reason: result.error.message };
+    }
+    
+    console.log(`[WhatsApp] Message sent to user ${userId}`);
+    return { success: true };
+  } catch (error) {
+    console.error('[WhatsApp] Error sending notification:', error.message);
+    return { success: false, reason: error.message };
+  }
+}
+
 async function runDailyNotification() {
   try {
-    const usersStmt = db.prepare('SELECT owner_id, notify_time, notify_timezone FROM notification_settings WHERE email_enabled = 1');
+    const usersStmt = db.prepare('SELECT owner_id, notify_time, notify_timezone FROM notification_settings WHERE email_enabled = 1 OR telegram_enabled = 1 OR whatsapp_enabled = 1');
     const usersToNotify = [];
     const now = new Date();
     
@@ -7564,8 +8105,13 @@ async function runDailyNotification() {
 
     for (const userId of usersToNotify) {
       console.log(`[Notification] MATCH! Sending scheduled notification to user ${userId}`);
-      await sendUserNotification(userId);
+      const emailResult = await sendUserNotification(userId);
+      console.log('[Notification] emailResult:', emailResult);
+      const summaryText = emailResult?.textContent || 'Tu resumen diario está listo. ¡Entra en la app para verlo!';
+      console.log('[Notification] summaryText length:', summaryText?.length);
       await sendPushNotification(userId, 'Family Agent', 'Tu resumen diario está listo', '/');
+      await sendTelegramNotification(userId, summaryText);
+      await sendWhatsAppNotification(userId, summaryText);
     }
   } catch (error) {
     console.error('Error in daily notification dispatcher:', error);
@@ -7633,10 +8179,6 @@ async function sendUserNotification(userId) {
     let settings = null;
     if (settingsStmt.step()) settings = settingsStmt.getAsObject();
     settingsStmt.free();
-
-    if (!settings?.email_enabled) {
-      return;
-    }
 
     const today = new Date();
     const todayStr = today.toISOString().split('T')[0];
@@ -7814,6 +8356,46 @@ async function sendUserNotification(userId) {
       .filter(a => a.daysUntil <= 30)
       .sort((a, b) => a.daysUntil - b.daysUntil);
 
+    // Fetch indulgences (within 15 days)
+    const indulgencesStmt = db.prepare(`SELECT * FROM indulgences WHERE owner_id = ?`);
+    indulgencesStmt.bind([userId]);
+    const allIndulgences = [];
+    while (indulgencesStmt.step()) {
+      allIndulgences.push(indulgencesStmt.getAsObject());
+    }
+    indulgencesStmt.free();
+
+    const indulgences = allIndulgences
+      .filter(i => i.date && i.date.trim() !== '')
+      .map(i => {
+        const indDate = new Date(i.date);
+        const indMonth = indDate.getMonth();
+        const indDay = indDate.getDate();
+        const currentYear = notificationStart.getFullYear();
+        
+        let nextInd = new Date(currentYear + 1, indMonth, indDay);
+        let indThisYear = new Date(currentYear, indMonth, indDay);
+        
+        if (indThisYear < notificationStart) {
+          nextInd = new Date(currentYear + 1, indMonth, indDay);
+        } else {
+          nextInd = indThisYear;
+        }
+        
+        const daysUntil = Math.ceil((nextInd - notificationStart) / (1000 * 60 * 60 * 24));
+        
+        return {
+          id: i.id,
+          title: i.title,
+          type: i.type,
+          date: i.date,
+          description: i.description,
+          daysUntil: daysUntil
+        };
+      })
+      .filter(i => i.daysUntil <= 15)
+      .sort((a, b) => a.daysUntil - b.daysUntil);
+
     // Fetch home maintenance tasks (within 100 days)
     const accessibleMaintenanceIds = getAccessibleUserIds(userId, 'share_home_maintenance');
     const maintenancePlaceholders = accessibleMaintenanceIds.map(() => '?').join(',');
@@ -7840,7 +8422,7 @@ async function sendUserNotification(userId) {
       .filter(task => task.daysUntilDue < 100)
       .sort((a, b) => a.daysUntilDue - b.daysUntilDue);
 
-    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, maintenanceTasks, anniversaries, tomorrow, nextWeek);
+    await sendNotificationEmail(settings, expandedEvents, budgets, profile, tasks, mealPlans, members, birthdays, maintenanceTasks, anniversaries, indulgences, tomorrow, nextWeek);
   } catch (error) {
     console.error('Error sending notification to user', userId, error);
   }
@@ -7874,7 +8456,7 @@ app.get('/api/notifications/settings', (req, res) => {
   
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
-  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before, push_enabled, push_subscription FROM notification_settings WHERE owner_id = ?');
+  const stmt = db.prepare('SELECT email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_day_before, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, whatsapp_enabled, whatsapp_phone_id, whatsapp_token FROM notification_settings WHERE owner_id = ?');
   stmt.bind([authUserId]);
   let settings = null;
   if (stmt.step()) settings = stmt.getAsObject();
@@ -7887,7 +8469,37 @@ app.get('/api/notifications/settings', (req, res) => {
     settings.smtp_password = '';
   }
   
-  console.log('sending to frontend:', JSON.stringify(settings));
+  const hasEnvTelegramToken = process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_BOT_TOKEN.trim() !== '';
+  const hasEnvTelegramChatId = process.env.TELEGRAM_CHAT_ID && process.env.TELEGRAM_CHAT_ID.trim() !== '';
+  const envTelegramEnabled = process.env.TELEGRAM_ENABLED === 'true';
+  
+  if (settings && settings.telegram_bot_token) {
+    settings.has_telegram_token = true;
+    settings.telegram_bot_token = '';
+  } else if (hasEnvTelegramToken) {
+    settings = settings || {};
+    settings.has_telegram_token = true;
+    settings.telegram_bot_token = '';
+  }
+  
+  if (settings && settings.whatsapp_token) {
+    settings.has_whatsapp_token = true;
+    settings.whatsapp_token = '';
+  }
+  
+  if (!settings) {
+    settings = {};
+  }
+  
+  settings.telegram_enabled = settings.telegram_enabled ?? (envTelegramEnabled ? 1 : 0);
+  if (!settings.telegram_bot_token && hasEnvTelegramToken) {
+    settings.telegram_bot_token = process.env.TELEGRAM_BOT_TOKEN;
+  }
+  if (!settings.telegram_chat_id && hasEnvTelegramChatId) {
+    settings.telegram_chat_id = process.env.TELEGRAM_CHAT_ID;
+  }
+  
+console.log('sending to frontend:', JSON.stringify(settings));
   
   res.json(settings || {});
 });
@@ -8035,12 +8647,15 @@ app.post('/api/notifications/settings', (req, res) => {
   
   if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
 
-  try {
-    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription } = req.body || {};
+try {
+    const { email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, whatsapp_enabled, whatsapp_phone_id, whatsapp_token } = req.body || {};
 
+    console.log('POST /api/notifications/settings - body:', JSON.stringify(req.body));
     console.log('POST /api/notifications/settings - smtp_password received:', !!smtp_password, 'length:', smtp_password?.length);
+    console.log('POST /api/notifications/settings - telegram:', telegram_enabled, telegram_bot_token ? 'token provided' : 'no token');
+    console.log('POST /api/notifications/settings - whatsapp:', whatsapp_enabled, whatsapp_phone_id ? 'phone provided' : 'no phone');
 
-    const currentStmt = db.prepare('SELECT smtp_password, notify_timezone FROM notification_settings WHERE owner_id = ?');
+    const currentStmt = db.prepare('SELECT smtp_password, notify_timezone, telegram_bot_token, telegram_enabled, telegram_chat_id, whatsapp_token, notify_time, notify_timezone, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays FROM notification_settings WHERE owner_id = ?');
     currentStmt.bind([authUserId]);
     let current = null;
     if (currentStmt.step()) current = currentStmt.getAsObject();
@@ -8049,6 +8664,10 @@ app.post('/api/notifications/settings', (req, res) => {
     console.log('POST /api/notifications/settings - current smtp_password:', !!current?.smtp_password);
 
     const passwordToSave = smtp_password || current?.smtp_password || '';
+    const telegramTokenToSave = telegram_bot_token || current?.telegram_bot_token || '';
+    const whatsappTokenToSave = whatsapp_token || current?.whatsapp_token || '';
+    const telegramEnabledToSave = telegram_enabled !== undefined ? (telegram_enabled ? 1 : 0) : (current?.telegram_enabled ?? 0);
+    const telegramChatIdToSave = telegram_chat_id || current?.telegram_chat_id || null;
     console.log('POST /api/notifications/settings - passwordToSave:', !!passwordToSave, 'length:', passwordToSave?.length);
     const timezone = notify_timezone || current?.notify_timezone || 'Europe/Madrid';
 
@@ -8076,6 +8695,12 @@ app.post('/api/notifications/settings', (req, res) => {
           notify_birthdays = ?,
           push_enabled = ?,
           push_subscription = ?,
+          telegram_enabled = ?,
+          telegram_bot_token = ?,
+          telegram_chat_id = ?,
+          whatsapp_enabled = ?,
+          whatsapp_phone_id = ?,
+          whatsapp_token = ?,
           updated_at = CURRENT_TIMESTAMP
         WHERE owner_id = ?
       `);
@@ -8096,13 +8721,19 @@ app.post('/api/notifications/settings', (req, res) => {
         notify_birthdays ?? 1,
         push_enabled ? 1 : 0,
         push_subscription || null,
+        telegramEnabledToSave,
+        telegramTokenToSave,
+        telegramChatIdToSave,
+        whatsapp_enabled ? 1 : 0,
+        whatsapp_phone_id || null,
+        whatsappTokenToSave,
         authUserId
       ]);
       stmt.free();
     } else {
       const stmt = db.prepare(`
-        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO notification_settings (owner_id, email_enabled, email_to, smtp_host, smtp_port, smtp_user, smtp_password, notify_time, notify_timezone, notify_day_before, notify_events, notify_tasks, notify_budgets, notify_meals, notify_birthdays, push_enabled, push_subscription, telegram_enabled, telegram_bot_token, telegram_chat_id, whatsapp_enabled, whatsapp_phone_id, whatsapp_token)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       stmt.run([
         authUserId,
@@ -8121,7 +8752,13 @@ app.post('/api/notifications/settings', (req, res) => {
         notify_meals ?? 1,
         notify_birthdays ?? 1,
         push_enabled ? 1 : 0,
-        push_subscription || null
+        push_subscription || null,
+        telegramEnabledToSave,
+        telegramTokenToSave,
+        telegramChatIdToSave,
+        whatsapp_enabled ? 1 : 0,
+        whatsapp_phone_id || null,
+        whatsappTokenToSave
       ]);
       stmt.free();
     }
@@ -8284,6 +8921,130 @@ app.post('/api/notifications/test-push', async (req, res) => {
     res.json({ success: true, message: 'Notificación de prueba enviada' });
   } catch (error) {
     console.error('Test push notification error:', error);
+    res.status(500).json({ error: 'Error enviando notificación: ' + error.message });
+  }
+});
+
+// Test Telegram notification endpoint
+app.post('/api/notifications/test-telegram', async (req, res) => {
+  const { username, password, userId } = req.headers || {};
+  
+  let authUserId = null;
+  
+  if (userId) {
+    const numericUserId = parseInt(userId, 10);
+    if (!isNaN(numericUserId)) {
+      const stmt = db.prepare('SELECT id FROM auth_user WHERE id = ?');
+      stmt.bind([numericUserId]);
+      if (stmt.step()) {
+        authUserId = stmt.getAsObject().id;
+      }
+      stmt.free();
+    }
+  }
+  
+  if (!authUserId && username && password) {
+    const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+    stmt.bind([username]);
+    if (stmt.step()) {
+      authUserId = stmt.getAsObject().id;
+    }
+    stmt.free();
+  }
+  
+  if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const result = await sendTelegramNotification(authUserId, 'Family Agent: Esta es una notificación de prueba desde Telegram.');
+    if (result.success) {
+      res.json({ success: true, message: 'Mensaje de prueba enviado por Telegram' });
+    } else {
+      res.status(500).json({ error: 'Error: ' + result.reason });
+    }
+  } catch (error) {
+    console.error('Test Telegram notification error:', error);
+    res.status(500).json({ error: 'Error enviando notificación: ' + error.message });
+  }
+});
+
+// Verify Telegram bot token
+app.post('/api/notifications/verify-telegram', async (req, res) => {
+  const { telegram_bot_token, telegram_chat_id } = req.body || {};
+  
+  if (!telegram_bot_token || !telegram_chat_id) {
+    return res.status(400).json({ error: 'Token y Chat ID requeridos' });
+  }
+  
+  try {
+    const url = `https://api.telegram.org/bot${telegram_bot_token}/getMe`;
+    const response = await fetch(url);
+    const result = await response.json();
+    
+    if (!result.ok) {
+      return res.status(400).json({ error: 'Token inválido: ' + result.description });
+    }
+    
+    const url2 = `https://api.telegram.org/bot${telegram_bot_token}/sendMessage`;
+    const response2 = await fetch(url2, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: telegram_chat_id,
+        text: '✅ Family Agent conectado correctamente. Recibirás tus aquí.' + String.fromCodePoint(0x1F4A1),
+        parse_mode: 'HTML'
+      })
+    });
+    const result2 = await response2.json();
+    
+    if (!result2.ok) {
+      return res.status(400).json({ error: 'Chat ID inválido: ' + result2.description });
+    }
+    
+    res.json({ success: true, bot_name: result.result.first_name });
+  } catch (error) {
+    console.error('Verify Telegram error:', error);
+    res.status(500).json({ error: 'Error verificando: ' + error.message });
+  }
+});
+
+// Test WhatsApp notification endpoint
+app.post('/api/notifications/test-whatsapp', async (req, res) => {
+  const { username, password, userId } = req.headers || {};
+  
+  let authUserId = null;
+  
+  if (userId) {
+    const numericUserId = parseInt(userId, 10);
+    if (!isNaN(numericUserId)) {
+      const stmt = db.prepare('SELECT id FROM auth_user WHERE id = ?');
+      stmt.bind([numericUserId]);
+      if (stmt.step()) {
+        authUserId = stmt.getAsObject().id;
+      }
+      stmt.free();
+    }
+  }
+  
+  if (!authUserId && username && password) {
+    const stmt = db.prepare('SELECT id FROM auth_user WHERE username = ?');
+    stmt.bind([username]);
+    if (stmt.step()) {
+      authUserId = stmt.getAsObject().id;
+    }
+    stmt.free();
+  }
+  
+  if (!authUserId) return res.status(401).json({ error: 'No autorizado' });
+  
+  try {
+    const result = await sendWhatsAppNotification(authUserId, 'Family Agent: Esta es una notificación de prueba desde WhatsApp.');
+    if (result.success) {
+      res.json({ success: true, message: 'Mensaje de prueba enviado por WhatsApp' });
+    } else {
+      res.status(500).json({ error: 'Error: ' + result.reason });
+    }
+  } catch (error) {
+    console.error('Test WhatsApp notification error:', error);
     res.status(500).json({ error: 'Error enviando notificación: ' + error.message });
   }
 });
@@ -8512,6 +9273,42 @@ app.delete('/api/contacts/:id', (req, res) => {
   db.run('DELETE FROM family_contacts WHERE id = ?', [id]);
   saveDb();
   res.json({ success: true });
+});
+
+app.put('/api/contacts/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, relationship, phone, email, address, notes } = req.body;
+  
+  if (!name) {
+    return res.status(400).json({ error: 'El nombre es obligatorio' });
+  }
+  
+  const checkStmt = db.prepare('SELECT owner_id FROM family_contacts WHERE id = ?');
+  checkStmt.bind([id]);
+  const owner = checkStmt.step() ? checkStmt.getAsObject() : null;
+  checkStmt.free();
+  
+  if (!owner || owner.owner_id !== userId) {
+    return res.status(403).json({ error: 'No autorizado' });
+  }
+  
+  try {
+    const stmt = db.prepare(`
+      UPDATE family_contacts 
+      SET name = ?, relationship = ?, phone = ?, email = ?, address = ?, notes = ?
+      WHERE id = ?
+    `);
+    stmt.run([name, relationship || null, phone || null, email || null, address || null, notes || null, id]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating contact:', error);
+    res.status(500).json({ error: 'Error actualizando contacto' });
+  }
 });
 
 await initDb();
@@ -9405,6 +10202,72 @@ app.delete('/api/anniversaries/:id', (req, res) => {
   }
 });
 
+app.get('/api/indulgences', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const accessibleIds = getAccessibleUserIds(userId, 'share_indulgences');
+  const placeholders = accessibleIds.map(() => '?').join(',');
+  
+  const stmt = db.prepare(`SELECT * FROM indulgences WHERE owner_id IN (${placeholders}) ORDER BY date ASC`);
+  stmt.bind(accessibleIds);
+  
+  const indulgences = [];
+  while (stmt.step()) {
+    indulgences.push(stmt.getAsObject());
+  }
+  stmt.free();
+  res.json(indulgences);
+});
+
+app.post('/api/indulgences', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id, title, date, type, description } = req.body;
+  const indId = id || crypto.randomUUID();
+  
+  try {
+    const stmt = db.prepare('INSERT INTO indulgences (id, owner_id, title, date, type, description) VALUES (?, ?, ?, ?, ?, ?)');
+    stmt.run([indId, userId, title, date, type || 'plenary', description || null]);
+    stmt.free();
+    saveDb();
+    res.json({ id: indId, success: true });
+  } catch (error) {
+    console.error('Error inserting indulgence:', error);
+    res.status(500).json({ error: 'Error guardando indulgencia' });
+  }
+});
+
+app.put('/api/indulgence/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  const { title, date, type, description } = req.body;
+  try {
+    const stmt = db.prepare('UPDATE indulgences SET title = ?, date = ?, type = ?, description = ? WHERE id = ? AND owner_id = ?');
+    stmt.run([title, date, type || 'plenary', description || null, id, userId]);
+    stmt.free();
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error actualizando' });
+  }
+});
+
+app.delete('/api/indulgence/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  const { id } = req.params;
+  try {
+    db.run('DELETE FROM indulgences WHERE id = ? AND owner_id = ?', [id, userId]);
+    saveDb();
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Error borrando' });
+  }
+});
+
 app.delete('/api/interesting-places/:id', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
@@ -9429,7 +10292,11 @@ app.get('/api/family/trips', (req, res) => {
   const stmt = db.prepare(`SELECT * FROM travel_manager WHERE owner_id IN (${placeholders}) ORDER BY start_date DESC`);
   stmt.bind(accessibleIds);
   const trips = [];
-  while (stmt.step()) trips.push(stmt.getAsObject());
+  while (stmt.step()) {
+    const t = stmt.getAsObject();
+    t.checklist = t.checklist ? JSON.parse(t.checklist) : [];
+    trips.push(t);
+  }
   stmt.free();
   res.json(trips);
 });
@@ -9438,10 +10305,10 @@ app.post('/api/family/trips', (req, res) => {
   const userId = getCurrentUserId(req.headers);
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
-  const { name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, notes } = req.body;
+  const { name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, checklist, notes } = req.body;
   const id = crypto.randomUUID();
-  const stmt = db.prepare('INSERT INTO travel_manager (id, owner_id, name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
-  stmt.run([id, userId, name, destination || null, start_date || null, end_date || null, budget || null, flights_booked ? 1 : 0, hotels_booked ? 1 : 0, activities_planned ? 1 : 0, notes || null]);
+  const stmt = db.prepare('INSERT INTO travel_manager (id, owner_id, name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, checklist, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+  stmt.run([id, userId, name, destination || null, start_date || null, end_date || null, budget || null, flights_booked ? 1 : 0, hotels_booked ? 1 : 0, activities_planned ? 1 : 0, JSON.stringify(checklist || []), notes || null]);
   stmt.free();
   saveDb();
   res.json({ id, success: true });
@@ -9452,9 +10319,9 @@ app.put('/api/family/trips/:id', (req, res) => {
   if (!userId) return res.status(401).json({ error: 'No autorizado' });
   
   const { id } = req.params;
-  const { name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, notes } = req.body;
-  const stmt = db.prepare('UPDATE travel_manager SET name = ?, destination = ?, start_date = ?, end_date = ?, budget = ?, flights_booked = ?, hotels_booked = ?, activities_planned = ?, notes = ? WHERE id = ? AND owner_id = ?');
-  stmt.run([name, destination || null, start_date || null, end_date || null, budget || null, flights_booked ? 1 : 0, hotels_booked ? 1 : 0, activities_planned ? 1 : 0, notes || null, id, userId]);
+  const { name, destination, start_date, end_date, budget, flights_booked, hotels_booked, activities_planned, checklist, notes } = req.body;
+  const stmt = db.prepare('UPDATE travel_manager SET name = ?, destination = ?, start_date = ?, end_date = ?, budget = ?, flights_booked = ?, hotels_booked = ?, activities_planned = ?, checklist = ?, notes = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, destination || null, start_date || null, end_date || null, budget || null, flights_booked ? 1 : 0, hotels_booked ? 1 : 0, activities_planned ? 1 : 0, checklist ? JSON.stringify(checklist) : null, notes || null, id, userId]);
   stmt.free();
   saveDb();
   res.json({ success: true });
@@ -9579,6 +10446,101 @@ app.delete('/api/family/trips/activities/:id', (req, res) => {
   db.run('DELETE FROM trip_activities WHERE id = ?', [id]);
   saveDb();
   res.json({ success: true });
+});
+
+app.get('/api/family/packing-lists', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const stmt = db.prepare('SELECT * FROM packing_lists WHERE owner_id = ? ORDER BY is_default DESC, name');
+  stmt.bind([userId]);
+  const lists = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    if (row.items) row.items = JSON.parse(row.items);
+    lists.push(row);
+  }
+  stmt.free();
+  res.json(lists);
+});
+
+app.post('/api/family/packing-lists', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { name, items } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Nombre requerido' });
+  }
+  const id = crypto.randomUUID();
+  const stmt = db.prepare('INSERT INTO packing_lists (id, owner_id, name, items) VALUES (?, ?, ?, ?)');
+  stmt.run([id, userId, name.trim(), JSON.stringify(items || [])]);
+  stmt.free();
+  saveDb();
+  res.json({ id, success: true });
+});
+
+app.put('/api/family/packing-lists/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  const { name, items } = req.body;
+  const stmt = db.prepare('UPDATE packing_lists SET name = ?, items = ? WHERE id = ? AND owner_id = ?');
+  stmt.run([name, JSON.stringify(items || []), id, userId]);
+  stmt.free();
+  saveDb();
+  res.json({ success: true });
+});
+
+app.delete('/api/family/packing-lists/:id', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const { id } = req.params;
+  db.run('DELETE FROM packing_lists WHERE id = ? AND owner_id = ? AND is_default = 0', [id, userId]);
+  saveDb();
+  res.json({ success: true });
+});
+
+const defaultPackingLists = [
+  { name: 'Básica', items: [
+    { item: 'Pasaporte/DNI', packed: false },
+    { item: 'Billetes', packed: false },
+    { item: 'Tarjeta crédito', packed: false },
+    { item: 'Ropa', packed: false },
+    { item: 'Cargador móvil', packed: false },
+    { item: 'Medicamentos', packed: false },
+    { item: 'Gafas de sol', packed: false },
+    { item: 'Protector solar', packed: false },
+    { item: 'Zapatillas', packed: false },
+    { item: 'Cámara fotos', packed: false },
+  ]},
+  { name: 'Playa', items: [
+    { item: 'Bañador', packed: false },
+    { item: 'Toalla playa', packed: false },
+    { item: 'Crema solar', packed: false },
+    { item: 'Gafas sol', packed: false },
+    { item: 'Chanclas', packed: false },
+    { item: 'Sombrero', packed: false },
+  ]},
+  { name: 'Montaña', items: [
+    { item: 'Botas montaña', packed: false },
+    { item: 'Ropa térmica', packed: false },
+    { item: 'Chaqueta impermeable', packed: false },
+    { item: 'Mochila', packed: false },
+    { item: 'Cantimplora', packed: false },
+  ]},
+  { name: 'Ciudad', items: [
+    { item: 'Zapatos cómodos', packed: false },
+    { item: 'Cámara fotos', packed: false },
+    { item: 'Mapa/Guía', packed: false },
+    { item: 'Dinero efectivo', packed: false },
+  ]},
+];
+
+app.get('/api/family/packing-lists/defaults', (req, res) => {
+  res.json(defaultPackingLists);
 });
 
 app.get('/api/education/library', (req, res) => {
@@ -10025,6 +10987,81 @@ app.get('/api/family/rewards/earned', (req, res) => {
   stmt.free();
   res.json(earnings);
 });
+
+app.get('/api/backups', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const adminStmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+  adminStmt.bind([userId]);
+  if (!adminStmt.step() || !adminStmt.getAsObject().is_admin) {
+    adminStmt.free();
+    return res.status(403).json({ error: 'Solo administradores' });
+  }
+  adminStmt.free();
+  
+  try {
+    const backups = listBackups();
+    res.json(backups);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/backups', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const adminStmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+  adminStmt.bind([userId]);
+  if (!adminStmt.step() || !adminStmt.getAsObject().is_admin) {
+    adminStmt.free();
+    return res.status(403).json({ error: 'Solo administradores' });
+  }
+  adminStmt.free();
+  
+  try {
+    const result = await createBackup();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/backups/restore', async (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  const adminStmt = db.prepare('SELECT is_admin FROM auth_user WHERE id = ?');
+  adminStmt.bind([userId]);
+  if (!adminStmt.step() || !adminStmt.getAsObject().is_admin) {
+    adminStmt.free();
+    return res.status(403).json({ error: 'Solo administradores' });
+  }
+  adminStmt.free();
+  
+  const { filename } = req.body;
+  if (!filename) {
+    return res.status(400).json({ error: 'Filename required' });
+  }
+  try {
+    const result = await restoreBackup(filename);
+    res.json({ ...result, message: 'Por favor reinicia el servidor para aplicar los cambios' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+cron.schedule('0 * * * *', async () => {
+  console.log('Running automatic backup...');
+  try {
+    await createBackup();
+  } catch (err) {
+    console.error('Automatic backup failed:', err);
+  }
+});
+
+createBackup().catch(console.error);
 
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);

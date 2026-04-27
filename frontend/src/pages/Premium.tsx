@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Users, Upload, Plus, Trash2, Phone, Mail, MapPin, X, CheckCircle, AlertCircle, Search } from 'lucide-react';
+import { Users, Upload, Plus, Trash2, Phone, Mail, MapPin, X, CheckCircle, AlertCircle, Search, Pencil } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -40,6 +40,9 @@ export function Premium() {
     address: '',
     notes: ''
   });
+
+  const [editingContact, setEditingContact] = useState<Contact | null>(null);
+  const [showEdit, setShowEdit] = useState(false);
 
   useEffect(() => {
     fetchContacts();
@@ -196,6 +199,44 @@ export function Premium() {
     }
   };
 
+  const handleEditClick = (contact: Contact) => {
+    setEditingContact(contact);
+    setShowEdit(true);
+  };
+
+  const handleUpdateContact = async () => {
+    if (!editingContact || !editingContact.name.trim()) {
+      setError('El nombre es obligatorio');
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_URL}/api/contacts/${editingContact.id}`, {
+        method: 'PUT',
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingContact.name,
+          relationship: editingContact.relationship,
+          phone: editingContact.phone,
+          email: editingContact.email,
+          address: editingContact.address,
+          notes: editingContact.notes
+        })
+      });
+
+      if (res.ok) {
+        setShowEdit(false);
+        setEditingContact(null);
+        fetchContacts();
+      } else {
+        const data = await res.json();
+        setError(data.error);
+      }
+    } catch (err) {
+      setError('Error actualizando contacto');
+    }
+  };
+
   const filteredContacts = contacts.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (c.relationship && c.relationship.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -285,12 +326,20 @@ export function Premium() {
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={() => handleDelete(contact.id)}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
-                >
-                  <Trash2 size={18} />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleEditClick(contact)}
+                    className="text-gray-400 hover:text-primary transition-colors"
+                  >
+                    <Pencil size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(contact.id)}
+                    className="text-gray-400 hover:text-red-500 transition-colors"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
               </div>
 
               <div className="mt-4 space-y-2">
@@ -576,6 +625,110 @@ export function Premium() {
               </button>
               <button
                 onClick={handleAddContact}
+                className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar contacto */}
+      {showEdit && editingContact && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800">Editar Contacto</h3>
+              <button onClick={() => { setShowEdit(false); setEditingContact(null); setError(null); }} className="text-gray-400 hover:text-gray-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  value={editingContact.name}
+                  onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Nombre del contacto"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Relación</label>
+                <input
+                  type="text"
+                  value={editingContact.relationship || ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, relationship: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Amigo, Familiar, etc."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
+                <input
+                  type="tel"
+                  value={editingContact.phone || ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="+34 600 000 000"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={editingContact.email || ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="email@ejemplo.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
+                <input
+                  type="text"
+                  value={editingContact.address || ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, address: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="Dirección"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea
+                  value={editingContact.notes || ''}
+                  onChange={(e) => setEditingContact({ ...editingContact, notes: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  rows={2}
+                  placeholder="Notas adicionales..."
+                />
+              </div>
+            </div>
+
+            {error && (
+              <div className="flex items-center gap-2 text-red-600 bg-red-50 p-3 rounded-lg mt-3">
+                <AlertCircle size={20} />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="flex gap-3 pt-4 mt-4 border-t">
+              <button
+                onClick={() => { setShowEdit(false); setEditingContact(null); setError(null); }}
+                className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleUpdateContact}
                 className="flex-1 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
               >
                 Guardar

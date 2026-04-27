@@ -531,29 +531,45 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     localStorage.setItem('showFinancialData', String(showFinancialData));
   }, [showFinancialData]);
   
-  const quotes = [
-    "PM es nuestro bebito.",
-    "Pm, tú y yo.",
-    "La familia es el corazón de la vida.",
+  const defaultQuotes = [
     "La familia es el corazón de la vida.",
     "Cada día es una nueva oportunidad para estar juntos.",
-    "El amor familiar es el mayor tesoros.",
-    "Las pequeñas cosas de la vida son las mas importantes.",
+    "El amor familiar es el mayor tesoro.",
+    "Las pequeñas cosas de la vida son las más importantes.",
     "La felicidad es estar en familia.",
     "Un hogar feliz es el mejor legado.",
-    "Si no puedes alabar cállate.",
     "El tiempo en familia es tiempo bien invertido.",
     "La familia es donde la vida comienza y el amor nunca termina.",
-    "Familia significa nadie se queda atras o olvidado.",
+    "Familia significa nadie se queda atrás o olvidado.",
     "La familia es lo primero.",
-    "Los momentos juntos son los mas Preciados.",
+    "Los momentos juntos son los más Preciados.",
     "Donde hay familia, hay amor.",
     "Cuidar la familia es nuestra mayor responsabilidad.",
-    "La fuerza de una familia esta en el amor que se comparten.",
-    "Juntos somos mas fuertes."
+    "La fuerza de una familia está en el amor que se comparten.",
+    "Juntos somos más fuertes."
   ];
   
-  const [dailyQuote] = useState(() => quotes[Math.floor(Math.random() * quotes.length)]);
+  const [quotes, setQuotes] = useState<string[]>([]);
+  const [dailyQuote, setDailyQuote] = useState<string>('');
+  
+  useEffect(() => {
+    fetch(`${API_URL}/api/settings/quotes`, { headers: getAuthHeaders() })
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          const texts = data.map((q: any) => q.text).filter(Boolean);
+          setQuotes(texts);
+          setDailyQuote(texts[Math.floor(Math.random() * texts.length)]);
+        } else {
+          setQuotes(defaultQuotes);
+          setDailyQuote(defaultQuotes[Math.floor(Math.random() * defaultQuotes.length)]);
+        }
+      })
+      .catch(() => {
+        setQuotes(defaultQuotes);
+        setDailyQuote(defaultQuotes[Math.floor(Math.random() * defaultQuotes.length)]);
+      });
+  }, []);
   
   useEffect(() => {
     fetchTransactions({ month: selectedMonth, year: selectedYear });

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Edit2, Plane, Hotel, MapPin, CheckCircle, Calendar, DollarSign, Clock, X } from 'lucide-react';
+import { Plus, Trash2, Edit2, Plane, Hotel, MapPin, CheckCircle, Calendar, DollarSign, Clock, X, CheckSquare, Square, Save, Copy, FolderOpen, Bookmark, List } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
-import type { Trip, TripMember, TripActivity } from '../types';
+import type { Trip, TripActivity, PackingList } from '../types';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -18,17 +18,52 @@ const DEFAULT_CHECKLIST = [
   { item: 'Cámara fotos', packed: false },
 ];
 
+const DEFAULT_PACKING_LISTS = {
+  playa: [
+    { item: 'Bañador', packed: false },
+    { item: 'Toallaplaya', packed: false },
+    { item: 'Crema solar', packed: false },
+    { item: 'Gafas sol', packed: false },
+    { item: 'Chanclas', packed: false },
+    { item: 'Sombrero', packed: false },
+  ],
+  montaña: [
+    { item: 'Botas montaña', packed: false },
+    { item: 'Ropa térmica', packed: false },
+    { item: 'Chaqueta impermeable', packed: false },
+    { item: 'Mochila', packed: false },
+    { item: 'Cantimplora', packed: false },
+  ],
+  ciudad: [
+    { item: 'Zapatos cómod', packed: false },
+    { item: 'Cámara fotos', packed: false },
+    { item: 'Mapa/Guía', packed: false },
+    { item: 'Dinero efectivo', packed: false },
+  ],
+};
+
+interface ChecklistItem {
+  item: string;
+  packed: boolean;
+}
+
 export function TravelManager() {
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [tripMembers, setTripMembers] = useState<Record<string, TripMember[]>>({});
   const [tripActivities, setTripActivities] = useState<Record<string, TripActivity[]>>({});
+  const [savedPackingLists, setSavedPackingLists] = useState<PackingList[]>([]);
   const [loading, setLoading] = useState(true);
   const [showTripForm, setShowTripForm] = useState(false);
   const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
+  const [showSaveListModal, setShowSaveListModal] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
+  const [editingActivity, setEditingActivity] = useState<TripActivity | null>(null);
   const [selectedTrip, setSelectedTrip] = useState<string | null>(null);
   const [selectedTripName, setSelectedTripName] = useState('');
+  
+  const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([]);
+  const [newItem, setNewItem] = useState('');
+  const [newListName, setNewListName] = useState('');
 
   const [tripForm, setTripForm] = useState({
     name: '',
@@ -61,22 +96,15 @@ export function TravelManager() {
     setLoading(true);
     try {
       const headers = getAuthHeaders();
-      const [tripsRes, membersRes] = await Promise.all([
+      const [tripsRes, packingListsRes] = await Promise.all([
         fetch(`${API_URL}/api/family/trips`, { headers }),
-        fetch(`${API_URL}/api/family/trips/members`, { headers }),
+        fetch(`${API_URL}/api/family/packing-lists`, { headers }),
       ]);
       const tripsData = await tripsRes.json();
-      const membersData = membersRes.ok ? await membersRes.json() : [];
+      const packingLists = packingListsRes.ok ? await packingListsRes.json() : [];
       
       setTrips(Array.isArray(tripsData) ? tripsData : []);
-      if (Array.isArray(membersData)) {
-        const grouped: Record<string, TripMember[]> = {};
-        membersData.forEach((m: TripMember) => {
-          if (!grouped[m.trip_id]) grouped[m.trip_id] = [];
-          grouped[m.trip_id].push(m);
-        });
-        setTripMembers(grouped);
-      }
+      setSavedPackingLists(packingLists);
 
       const activitiesData: Record<string, TripActivity[]> = {};
       for (const trip of Array.isArray(tripsData) ? tripsData : []) {
@@ -164,16 +192,43 @@ export function TravelManager() {
     if (!selectedTrip || !activityForm.name.trim()) return;
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/family/trips/activities`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ trip_id: selectedTrip, ...activityForm, cost: activityForm.cost ? Number(activityForm.cost) : 0 })
-      });
+      if (editingActivity) {
+        await fetch(`${API_URL}/api/family/trips/activities/${editingActivity.id}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ ...activityForm, cost: activityForm.cost ? Number(activityForm.cost) : 0 })
+        });
+      } else {
+        await fetch(`${API_URL}/api/family/trips/activities`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ trip_id: selectedTrip, ...activityForm, cost: activityForm.cost ? Number(activityForm.cost) : 0 })
+        });
+      }
       setActivityForm({ name: '', date: '', time: '', location: '', notes: '', cost: '', booked: false });
+      setEditingActivity(null);
       fetchData();
     } catch (error) {
       console.error('Error adding activity:', error);
     }
+  };
+
+  const openEditActivity = (activity: TripActivity) => {
+    setEditingActivity(activity);
+    setActivityForm({
+      name: activity.name,
+      date: activity.date || '',
+      time: activity.time || '',
+      location: activity.location || '',
+      notes: activity.notes || '',
+      cost: activity.cost?.toString() || '',
+      booked: activity.booked || false,
+    });
+  };
+
+  const cancelEditActivity = () => {
+    setEditingActivity(null);
+    setActivityForm({ name: '', date: '', time: '', location: '', notes: '', cost: '', booked: false });
   };
 
   const resetTripForm = () => {
@@ -195,7 +250,92 @@ export function TravelManager() {
   const openChecklistModal = (tripId: string, tripName: string) => {
     setSelectedTrip(tripId);
     setSelectedTripName(tripName);
+    const trip = trips.find(t => t.id === tripId);
+    if (trip && trip.checklist && trip.checklist.length > 0) {
+      setChecklistItems(trip.checklist);
+    } else {
+      setChecklistItems([...DEFAULT_CHECKLIST]);
+    }
     setShowChecklistModal(true);
+  };
+
+  const handleAddChecklistItem = () => {
+    if (!newItem.trim()) return;
+    setChecklistItems([...checklistItems, { item: newItem.trim(), packed: false }]);
+    setNewItem('');
+  };
+
+  const handleToggleChecklistItem = (index: number) => {
+    const newItems = [...checklistItems];
+    newItems[index].packed = !newItems[index].packed;
+    setChecklistItems(newItems);
+  };
+
+  const handleDeleteChecklistItem = (index: number) => {
+    setChecklistItems(checklistItems.filter((_, i) => i !== index));
+  };
+
+  const handleSaveChecklist = async () => {
+    if (!selectedTrip) return;
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const trip = trips.find(t => t.id === selectedTrip);
+      await fetch(`${API_URL}/api/family/trips/${selectedTrip}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ ...trip, checklist: checklistItems })
+      });
+      fetchData();
+      setShowChecklistModal(false);
+    } catch (error) {
+      console.error('Error saving checklist:', error);
+    }
+  };
+
+  const handleUseDefaultChecklist = () => {
+    setChecklistItems([...DEFAULT_CHECKLIST]);
+  };
+
+  const handleUsePackingList = (type: keyof typeof DEFAULT_PACKING_LISTS) => {
+    setChecklistItems([...DEFAULT_CHECKLIST, ...DEFAULT_PACKING_LISTS[type]]);
+  };
+
+  const handleUseSavedPackingList = (list: PackingList) => {
+    if (list.items) {
+      setChecklistItems([...DEFAULT_CHECKLIST, ...list.items]);
+    }
+  };
+
+  const handleOpenSaveListModal = () => {
+    setNewListName('');
+    setShowSaveListModal(true);
+  };
+
+  const handleSavePackingList = async () => {
+    if (!newListName.trim()) return;
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      await fetch(`${API_URL}/api/family/packing-lists`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: newListName.trim(), items: checklistItems })
+      });
+      fetchData();
+      setShowSaveListModal(false);
+    } catch (error) {
+      console.error('Error saving packing list:', error);
+    }
+  };
+
+  const handleDeleteSavedPackingList = async (id: string) => {
+    if (!confirm('¿Eliminar esta lista guardada?')) return;
+    try {
+      const headers = getAuthHeaders();
+      await fetch(`${API_URL}/api/family/packing-lists/${id}`, { method: 'DELETE', headers });
+      fetchData();
+    } catch (error) {
+      console.error('Error deleting packing list:', error);
+    }
   };
 
   const formatDate = (date?: string) => date ? new Date(date).toLocaleDateString('es-ES') : '-';
@@ -564,7 +704,7 @@ export function TravelManager() {
                 <h2 className="text-lg font-bold text-gray-800">Actividades</h2>
                 <p className="text-sm text-gray-500">{selectedTripName}</p>
               </div>
-              <button onClick={() => setShowActivityModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+              <button onClick={() => { setShowActivityModal(false); setEditingActivity(null); setActivityForm({ name: '', date: '', time: '', location: '', notes: '', cost: '', booked: false }); }} className="p-2 hover:bg-gray-100 rounded-lg">
                 <X size={20} />
               </button>
             </div>
@@ -614,12 +754,22 @@ export function TravelManager() {
                   Reservado
                 </label>
               </div>
-              <button
-                onClick={addActivity}
-                className="w-full mt-2 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90"
-              >
-                Añadir actividad
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={addActivity}
+                  className="flex-1 mt-2 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90"
+                >
+                  {editingActivity ? 'Guardar cambios' : 'Añadir actividad'}
+                </button>
+                {editingActivity && (
+                  <button
+                    onClick={cancelEditActivity}
+                    className="mt-2 px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="p-4 overflow-y-auto flex-1">
@@ -644,6 +794,9 @@ export function TravelManager() {
                             </div>
                           </div>
                         </div>
+                        <button onClick={() => openEditActivity(activity)} className="p-1 text-blue-400 hover:text-blue-600">
+                          <Edit2 size={14} />
+                        </button>
                         <button onClick={() => deleteActivity(activity.id)} className="p-1 text-red-400 hover:text-red-600">
                           <Trash2 size={14} />
                         </button>
@@ -660,7 +813,184 @@ export function TravelManager() {
             </div>
           </div>
         </div>
-      )}
+)}
+
+        {showChecklistModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="p-4 border-b flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-800">Equipaje</h2>
+                  <p className="text-sm text-gray-500">{selectedTripName}</p>
+                </div>
+                <button onClick={() => setShowChecklistModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="p-4 border-b bg-gray-50 space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={handleUseDefaultChecklist}
+                    className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200"
+                  >
+                    Básica
+                  </button>
+                  <button
+                    onClick={() => handleUsePackingList('playa')}
+                    className="px-3 py-1.5 text-xs bg-yellow-100 text-yellow-700 rounded-full hover:bg-yellow-200"
+                  >
+                    Playa
+                  </button>
+                  <button
+                    onClick={() => handleUsePackingList('montaña')}
+                    className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded-full hover:bg-green-200"
+                  >
+                    Montaña
+                  </button>
+                  <button
+                    onClick={() => handleUsePackingList('ciudad')}
+                    className="px-3 py-1.5 text-xs bg-purple-100 text-purple-700 rounded-full hover:bg-purple-200"
+                  >
+                    Ciudad
+                  </button>
+                  <button
+                    onClick={handleOpenSaveListModal}
+                    className="px-3 py-1.5 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 flex items-center gap-1"
+                  >
+                    <Save size={12} />
+                    Guardar
+                  </button>
+                </div>
+                {savedPackingLists.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <span className="w-full text-xs text-gray-500 flex items-center gap-1">
+                      <Bookmark size={12} />Mis listas guardadas:
+                    </span>
+                    {savedPackingLists.map((list) => (
+                      <button
+                        key={list.id}
+                        onClick={() => handleUseSavedPackingList(list)}
+                        className="px-3 py-1.5 text-xs bg-indigo-50 text-indigo-700 rounded-full hover:bg-indigo-100 flex items-center gap-1"
+                      >
+                        <List size={12} />
+                        {list.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Añadir elemento..."
+                    value={newItem}
+                    onChange={(e) => setNewItem(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddChecklistItem()}
+                    className="flex-1 px-3 py-2 border rounded-lg"
+                  />
+                  <button
+                    onClick={handleAddChecklistItem}
+                    className="px-3 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90"
+                  >
+                    <Plus size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 overflow-y-auto flex-1">
+                {checklistItems.length > 0 ? (
+                  <div className="space-y-2">
+                    {checklistItems.map((item, index) => (
+                      <div key={index} className={`flex items-center gap-3 p-3 rounded-lg border ${item.packed ? 'bg-green-50 border-green-200' : 'bg-white'}`}>
+                        <button
+                          onClick={() => handleToggleChecklistItem(index)}
+                          className={`w-5 h-5 rounded border flex items-center justify-center ${item.packed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300'}`}
+                        >
+                          {item.packed && <CheckCircle size={14} />}
+                        </button>
+                        <span className={`flex-1 ${item.packed ? 'line-through text-gray-500' : 'text-gray-800'}`}>
+                          {item.item}
+                        </span>
+                        <button onClick={() => handleDeleteChecklistItem(index)} className="p-1 text-red-400 hover:text-red-600">
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <CheckSquare size={48} className="mx-auto text-gray-300 mb-4" />
+                    <p>No hay elementos</p>
+                    <p className="text-sm text-gray-400">Añade elementos o usa una lista predefinida</p>
+                  </div>
+                )}
+                
+                <div className="mt-4 flex items-center justify-between text-sm text-gray-500 bg-gray-50 p-3 rounded-lg">
+                  <span>{checklistItems.filter(i => i.packed).length} / {checklistItems.length} elementos</span>
+                  <span>{checklistItems.length > 0 ? Math.round((checklistItems.filter(i => i.packed).length / checklistItems.length) * 100) : 0}% completado</span>
+                </div>
+              </div>
+
+              <div className="p-4 border-t flex gap-2">
+                <button
+                  onClick={handleSaveChecklist}
+                  className="flex-1 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90 flex items-center justify-center gap-2"
+                >
+                  <Save size={18} />
+                  Guardar
+                </button>
+                <button
+                  onClick={() => setShowChecklistModal(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showSaveListModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
+              <div className="p-4 border-b flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-800">Guardar lista</h2>
+                <button onClick={() => setShowSaveListModal(false)} className="p-2 hover:bg-gray-100 rounded-lg">
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la lista</label>
+                  <input
+                    type="text"
+                    value={newListName}
+                    onChange={(e) => setNewListName(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    placeholder="Ej: Viaje familiares"
+                  />
+                </div>
+                <div className="text-sm text-gray-500">
+                  {checklistItems.length} elementos en la lista actual
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSavePackingList}
+                    className="flex-1 py-2 bg-[var(--color-primary)] text-white rounded-lg hover:bg-[var(--color-primary)]/90"
+                  >
+                    Guardar lista
+                  </button>
+                  <button
+                    onClick={() => setShowSaveListModal(false)}
+                    className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+)}
     </div>
-  );
+);
 }

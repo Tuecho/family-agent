@@ -1,13 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Gift, Edit2, Trash2, CalendarHeart, Sparkles, X, ChevronDown } from 'lucide-react';
+import { Plus, Gift, Edit2, Trash2, Trash, CalendarHeart, Sparkles, X, PlusCircle } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 import type { Anniversary } from '../types';
+
+const defaultTypes = ['Boda', 'Bautizo', 'Comunión', 'Cumpleaños', 'Fallecimiento', 'Noviazgo', 'Personal', 'Santos', 'Otro'];
+
+const STORAGE_KEY_DISABLED_TYPES = 'anniversary_disabled_types';
 
 export default function Anniversaries() {
   const [anniversaries, setAnniversaries] = useState<Anniversary[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [customTypes, setCustomTypes] = useState<string[]>([]);
+  const [disabledDefaultTypes, setDisabledDefaultTypes] = useState<string[]>([]);
+  const [showTypeManager, setShowTypeManager] = useState(false);
+  const [newType, setNewType] = useState('');
 
   const [form, setForm] = useState({
     title: '',
@@ -16,11 +24,56 @@ export default function Anniversaries() {
     notes: ''
   });
 
-  const types = ['Boda', 'Bautizo', 'Comunión', 'Cumpleaños', 'Fallecimiento', 'Noviazgo', 'Personal', 'Otro'];
-
   useEffect(() => {
     fetchAnniversaries();
+    loadCustomTypes();
+    loadDisabledTypes();
   }, []);
+
+  const loadCustomTypes = () => {
+    const saved = localStorage.getItem('anniversary_types');
+    if (saved) {
+      setCustomTypes(JSON.parse(saved));
+    }
+  };
+
+  const saveCustomTypes = (types: string[]) => {
+    localStorage.setItem('anniversary_types', JSON.stringify(types));
+    setCustomTypes(types);
+  };
+
+  const loadDisabledTypes = () => {
+    const saved = localStorage.getItem(STORAGE_KEY_DISABLED_TYPES);
+    if (saved) {
+      setDisabledDefaultTypes(JSON.parse(saved));
+    }
+  };
+
+  const saveDisabledTypes = (types: string[]) => {
+    localStorage.setItem(STORAGE_KEY_DISABLED_TYPES, JSON.stringify(types));
+    setDisabledDefaultTypes(types);
+  };
+
+  const removeDefaultType = (typeToRemove: string) => {
+    if (confirm(`¿Eliminar "${typeToRemove}" de la lista? Los tipos eliminados no aparecerán al crear aniversarios.`)) {
+      saveDisabledTypes([...disabledDefaultTypes, typeToRemove]);
+    }
+  };
+
+  const allTypes = [...defaultTypes, ...customTypes].filter(t => !disabledDefaultTypes.includes(t));
+
+  const addCustomType = () => {
+    if (newType.trim() && !allTypes.includes(newType.trim())) {
+      saveCustomTypes([...customTypes, newType.trim()]);
+      setNewType('');
+    }
+  };
+
+  const removeCustomType = (typeToRemove: string) => {
+    if (confirm(`¿Eliminar "${typeToRemove}" de la lista?`)) {
+      saveCustomTypes(customTypes.filter(t => t !== typeToRemove));
+    }
+  };
 
   const fetchAnniversaries = async () => {
     try {
@@ -124,6 +177,7 @@ export default function Anniversaries() {
       case 'Cumpleaños': return 'text-yellow-600 bg-yellow-100';
       case 'Fallecimiento': return 'text-gray-600 bg-gray-100';
       case 'Noviazgo': return 'text-rose-600 bg-rose-100';
+      case 'Santos': return 'text-amber-600 bg-amber-100';
       default: return 'text-primary bg-primary/10';
     }
   };
@@ -131,6 +185,7 @@ export default function Anniversaries() {
   const getTypeIcon = (type: string) => {
     if (type === 'Boda' || type === 'Noviazgo') return <Sparkles size={16} />;
     if (type === 'Cumpleaños') return <Gift size={16} />;
+    if (type === 'Santos') return <Sparkles size={16} />;
     return <CalendarHeart size={16} />;
   };
 
@@ -146,7 +201,7 @@ export default function Anniversaries() {
         </div>
         <button
           type="button"
-          onClick={() => { setEditingId(null); setShowModal(true); }}
+          onClick={() => { setForm({ title: '', type: 'Boda', date: '', notes: '' }); setEditingId(null); setShowModal(true); }}
           className="btn-modern flex items-center gap-2"
         >
           <Plus size={20} />
@@ -162,7 +217,7 @@ export default function Anniversaries() {
         <div className="card-modern p-12 text-center text-gray-500">
           <CalendarHeart size={48} className="mx-auto text-gray-300 mb-4" />
           <p className="text-lg">No hay ningún aniversario guardado.</p>
-          <button onClick={() => { setEditingId(null); setShowModal(true); }} className="mt-4 text-primary font-medium hover:underline">
+          <button onClick={() => { setForm({ title: '', type: 'Boda', date: '', notes: '' }); setEditingId(null); setShowModal(true); }} className="mt-4 text-primary font-medium hover:underline">
             ¡Agrega el primero!
           </button>
         </div>
@@ -281,15 +336,22 @@ export default function Anniversaries() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Tipo</label>
-                  <div className="relative">
+                  <div className="flex gap-2">
                     <select
                       value={form.type}
                       onChange={(e) => setForm({...form, type: e.target.value})}
-                      className="input-modern appearance-none w-full"
+                      className="input-modern flex-1"
                     >
-                      {types.map(t => <option key={t} value={t}>{t}</option>)}
+                      {allTypes.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
-                    <ChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                    <button
+                      type="button"
+                      onClick={() => setShowTypeManager(true)}
+                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors"
+                      title="Gestionar tipos"
+                    >
+                      <PlusCircle size={20} className="text-gray-600" />
+                    </button>
                   </div>
                 </div>
                 
@@ -331,6 +393,80 @@ export default function Anniversaries() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showTypeManager && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4" style={{ zIndex: 9999 }}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+            <div className="flex justify-between items-center p-6 border-b border-gray-100">
+              <h2 className="text-xl font-bold text-gray-800">Gestionar Tipos</h2>
+              <button 
+                onClick={() => setShowTypeManager(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-2 hover:bg-gray-100 rounded-full"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newType}
+                  onChange={(e) => setNewType(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addCustomType()}
+                  className="input-modern flex-1"
+                  placeholder="Nuevo tipo..."
+                />
+                <button
+                  type="button"
+                  onClick={addCustomType}
+                  className="px-4 py-2 bg-primary text-white font-medium rounded-xl hover:bg-primary/90"
+                >
+                  <Plus size={20} />
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Tipos predeterminados</p>
+                {defaultTypes.filter(t => !disabledDefaultTypes.includes(t)).map(t => (
+                  <div key={t} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                    <span className="font-medium">{t}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeDefaultType(t)}
+                      className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash size={18} />
+                    </button>
+                  </div>
+                ))}
+                
+                {customTypes.length > 0 && (
+                  <>
+                    <p className="text-xs text-gray-400 uppercase tracking-wide mt-4 mb-2">Tipos personalizados</p>
+                    {customTypes.map(t => (
+                      <div key={t} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
+                        <span className="font-medium">{t}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeCustomType(t)}
+                          className="p-2 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        >
+                          <Trash size={18} />
+                        </button>
+                      </div>
+                    ))}
+                  </>
+                )}
+                
+                {customTypes.length === 0 && defaultTypes.filter(t => !disabledDefaultTypes.includes(t)).length === 0 && (
+                  <p className="text-gray-500 text-center py-4">No hay tipos disponibles</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -135,6 +135,7 @@ export interface Trip {
   flights_booked?: boolean;
   hotels_booked?: boolean;
   activities_planned?: boolean;
+  checklist?: { item: string; packed: boolean }[];
   notes?: string;
 }
 
@@ -155,6 +156,12 @@ export interface TripActivity {
   notes?: string;
   cost?: number;
   booked?: boolean;
+}
+
+export interface PackingList {
+  id: string;
+  name: string;
+  items: { item: string; packed: boolean }[];
 }
 
 export interface SavingsPig {
@@ -225,4 +232,14 @@ export interface ExtraSchool {
   payment_due_day?: number;
   material_needed?: string;
   notes?: string;
+}
+
+export interface Indulgence {
+  id: string;
+  owner_id?: number;
+  title: string;
+  date: string;
+  type: 'plenary' | 'partial';
+  description?: string;
+  created_at?: string;
 }

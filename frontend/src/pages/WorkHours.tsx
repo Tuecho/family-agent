@@ -233,14 +233,6 @@ export function WorkHours() {
         body: JSON.stringify(settingsForm)
       });
       
-      if (accumulatedData.week_overtime > 0) {
-        await fetch(`${API_URL}/api/work-hours/update-accumulated`, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ accumulated_hours: accumulatedData.accumulated_hours })
-        });
-      }
-      
       setShowSettings(false);
       fetchData();
     } catch (error) {

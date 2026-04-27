@@ -172,17 +172,28 @@ export function NotificationSettings() {
     }
   };
 
-  const handleSave = async () => {
+const handleSave = async () => {
+    console.log('handleSave called');
     setSaving(true);
     setMessage(null);
 
     try {
+      const bodyData = { 
+        ...settings, 
+        smtp_password: smtpPassword 
+      };
+      console.log('NotificationSettings: Saving with body:', JSON.stringify(bodyData));
+      
+      const headers = getAuthHeaders();
       const resp = await fetch(`${API_URL}/api/notifications/settings`, {
         method: 'POST',
-        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...settings, smtp_password: smtpPassword })
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyData)
       });
+      
+      console.log('NotificationSettings: Response status:', resp.status);
       const data = await resp.json();
+      console.log('NotificationSettings: Response data:', data);
       
       if (data.success) {
         setMessage({ type: 'success', text: 'Configuración guardada' });
@@ -194,7 +205,7 @@ export function NotificationSettings() {
         setMessage({ type: 'error', text: data.error || 'Error guardando' });
       }
     } catch (error) {
-      setMessage({ type: 'error', text: 'Error de conexión' });
+      setMessage({ type: 'error', text: 'Error de conexión: ' + error.message });
     } finally {
       setSaving(false);
     }

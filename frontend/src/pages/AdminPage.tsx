@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload } from 'lucide-react';
+import { Users, Shield, Trash2, Lock, Unlock, Key, Check, X, Loader2, AlertTriangle, UserPlus, BarChart3, Activity, Clock, UserCheck, Lightbulb, MessageSquare, Eye, Send, Settings, Image, EyeOff, ImageIcon, Database, Download, Upload, Plus, Edit2, Quote, MessageCircle, Send as SendIcon, Phone } from 'lucide-react';
 import { getAuthHeaders } from '../utils/auth';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -10,6 +10,8 @@ interface User {
   is_admin: number;
   status: string;
   created_at: string;
+  last_login?: string;
+  last_logout?: string;
 }
 
 interface Suggestion {
@@ -31,23 +33,30 @@ interface Stats {
   admins: number;
   totalTransactions: number;
   totalBudgets: number;
+  connected: number;
 }
 
 export function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, active: 0, blocked: 0, pending: 0, admins: 0, totalTransactions: 0, totalBudgets: 0, connected: 0 });
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [showPasswordModal, setShowPasswordModal] = useState<User | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
+  const [showPasswordVisibility, setShowPasswordVisibility] = useState(false);
+  const [showConfirmPasswordVisibility, setShowConfirmPasswordVisibility] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newUsername, setNewUsername] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
+  const [confirmUserPassword, setConfirmUserPassword] = useState('');
   const [newUserError, setNewUserError] = useState('');
+  const [showNewUserPasswordVisibility, setShowNewUserPasswordVisibility] = useState(false);
+  const [showConfirmUserPasswordVisibility, setShowConfirmUserPasswordVisibility] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'modules'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'suggestions' | 'login' | 'database' | 'modules' | 'quotes' | 'telegram' | 'whatsapp'>('users');
   
   const [loginImage, setLoginImage] = useState('');
   const [showLock, setShowLock] = useState(true);
@@ -57,10 +66,54 @@ export function AdminPage() {
   const [dbMessage, setDbMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [deleteSuggestionId, setDeleteSuggestionId] = useState<number | null>(null);
   const [hiddenModules, setHiddenModules] = useState<string[]>([]);
+  const [quotes, setQuotes] = useState<{ id: number; text: string; created_at?: string; updated_at?: string }[]>([]);
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [newQuote, setNewQuote] = useState('');
+  const [editingQuote, setEditingQuote] = useState<{ id: number; text: string } | null>(null);
+  const [savingQuote, setSavingQuote] = useState(false);
+  const [hasDefaultQuotes, setHasDefaultQuotes] = useState(false);
+  const [telegramSettings, setTelegramSettings] = useState({
+    enabled: false,
+    bot_token: '',
+    chat_id: ''
+  });
+  const [telegramTokenInput, setTelegramTokenInput] = useState('');
+  const [telegramSaving, setTelegramSaving] = useState(false);
+  const [telegramTesting, setTelegramTesting] = useState(false);
+  const [telegramMessage, setTelegramMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [whatsappSettings, setWhatsappSettings] = useState({
+    enabled: false,
+    phone_id: '',
+    token: ''
+  });
+  const [whatsappTokenInput, setWhatsappTokenInput] = useState('');
+  const [whatsappSaving, setWhatsappSaving] = useState(false);
+  const [whatsappTesting, setWhatsappTesting] = useState(false);
+  const [whatsappMessage, setWhatsappMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const defaultQuotesList = [
+    "La familia es el corazón de la vida.",
+    "Cada día es una nueva oportunidad para estar juntos.",
+    "El amor familiar es el mayor tesoro.",
+    "Las pequeñas cosas de la vida son las más importantes.",
+    "La felicidad es estar en familia.",
+    "Un hogar feliz es el mejor legado.",
+    "El tiempo en familia es tiempo bien invertido.",
+    "La familia es donde la vida comienza y el amor nunca termina.",
+    "Familia significa nadie se queda atrás o olvidado.",
+    "La familia es lo primero.",
+    "Los momentos juntos son los más Preciados.",
+    "Donde hay familia, hay amor.",
+    "Cuidar la familia es nuestra mayor responsabilidad.",
+    "La fuerza de una familia está en el amor que se comparten.",
+    "Juntos somos más fuertes."
+  ];
 
   useEffect(() => {
     fetchData();
     fetchSuggestions();
+    fetchTelegramSettings();
+    fetchWhatsappSettings();
   }, []);
 
   const fetchData = async () => {
@@ -90,6 +143,148 @@ export function AdminPage() {
       setSuggestions(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
+    }
+  };
+
+  const fetchTelegramSettings = async () => {
+    try {
+      const headers = { ...getAuthHeaders(), userId: '1' };
+      const response = await fetch(`${API_URL}/api/notifications/settings`, { headers });
+      const data = await response.json();
+      setTelegramSettings({
+        enabled: data.telegram_enabled === 1,
+        bot_token: data.has_telegram_token ? '' : (data.telegram_bot_token || ''),
+        chat_id: data.telegram_chat_id || ''
+      });
+      if (data.has_telegram_token) {
+        setTelegramTokenInput('__saved__');
+      }
+    } catch (error) {
+      console.error('Error fetching Telegram settings:', error);
+    }
+  };
+
+  const saveTelegramSettings = async () => {
+    setTelegramSaving(true);
+    setTelegramMessage(null);
+    try {
+      const tokenToSave = telegramTokenInput === '__saved__' ? {} : { telegram_bot_token: telegramTokenInput };
+      const headers = { ...getAuthHeaders(), userId: '1', 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/notifications/settings`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          telegram_enabled: telegramSettings.enabled ? 1 : 0,
+          telegram_chat_id: telegramSettings.chat_id,
+          ...tokenToSave
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTelegramMessage({ type: 'success', text: 'Configuración guardada' });
+        if (telegramTokenInput && telegramTokenInput !== '__saved__') {
+          setTelegramTokenInput('__saved__');
+        }
+      } else {
+        setTelegramMessage({ type: 'error', text: data.error || 'Error guardando' });
+      }
+    } catch (error) {
+      setTelegramMessage({ type: 'error', text: 'Error de conexión' });
+    } finally {
+      setTelegramSaving(false);
+    }
+  };
+
+  const testTelegram = async () => {
+    setTelegramTesting(true);
+    setTelegramMessage(null);
+    try {
+      const headers = { ...getAuthHeaders(), userId: '1' };
+      const response = await fetch(`${API_URL}/api/notifications/test-telegram`, {
+        method: 'POST',
+        headers
+      });
+      const data = await response.json();
+      if (data.success) {
+        setTelegramMessage({ type: 'success', text: 'Mensaje de prueba enviado por Telegram' });
+      } else {
+        setTelegramMessage({ type: 'error', text: data.error || 'Error enviando' });
+      }
+    } catch (error) {
+      setTelegramMessage({ type: 'error', text: 'Error de conexión' });
+    } finally {
+      setTelegramTesting(false);
+    }
+  };
+
+  const fetchWhatsappSettings = async () => {
+    try {
+      const headers = { ...getAuthHeaders(), userId: '1' };
+      const response = await fetch(`${API_URL}/api/notifications/settings`, { headers });
+      const data = await response.json();
+      setWhatsappSettings({
+        enabled: data.whatsapp_enabled === 1,
+        phone_id: data.whatsapp_phone_id || '',
+        token: ''
+      });
+      if (data.has_whatsapp_token) {
+        setWhatsappTokenInput('__saved__');
+      }
+    } catch (error) {
+      console.error('Error fetching WhatsApp settings:', error);
+    }
+  };
+
+  const saveWhatsappSettings = async () => {
+    setWhatsappSaving(true);
+    setWhatsappMessage(null);
+    try {
+      const tokenToSave = whatsappTokenInput === '__saved__' ? {} : { whatsapp_token: whatsappTokenInput };
+      const headers = { ...getAuthHeaders(), userId: '1', 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/notifications/settings`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          whatsapp_enabled: whatsappSettings.enabled ? 1 : 0,
+          whatsapp_phone_id: whatsappSettings.phone_id,
+          ...tokenToSave
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setWhatsappMessage({ type: 'success', text: 'Configuración guardada' });
+        if (whatsappTokenInput && whatsappTokenInput !== '__saved__') {
+          setWhatsappTokenInput('__saved__');
+        }
+      } else {
+        setWhatsappMessage({ type: 'error', text: data.error || 'Error guardando' });
+      }
+    } catch (error) {
+      setWhatsappMessage({ type: 'error', text: 'Error de conexión' });
+    } finally {
+      setWhatsappSaving(false);
+    }
+  };
+
+  const testWhatsapp = async () => {
+    setWhatsappTesting(true);
+    setWhatsappMessage(null);
+    try {
+      const headers = { ...getAuthHeaders(), userId: '1' };
+      const response = await fetch(`${API_URL}/api/notifications/test-whatsapp`, {
+        method: 'POST',
+        headers
+      });
+      const data = await response.json();
+      if (data.success) {
+        setWhatsappMessage({ type: 'success', text: 'Mensaje de prueba enviado por WhatsApp' });
+      } else {
+        setWhatsappMessage({ type: 'error', text: data.error || 'Error enviando' });
+      }
+    } catch (error) {
+      setWhatsappMessage({ type: 'error', text: 'Error de conexión' });
+    } finally {
+      setWhatsappTesting(false);
     }
   };
 
@@ -146,7 +341,138 @@ export function AdminPage() {
     if (activeTab === 'modules') {
       fetchHiddenModules();
     }
+    if (activeTab === 'quotes') {
+      fetchQuotes();
+    }
   }, [activeTab]);
+
+  const fetchQuotes = async () => {
+    setQuotesLoading(true);
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/settings/quotes`, { headers });
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        setQuotes(data);
+        setHasDefaultQuotes(false);
+      } else {
+        const defaultWithIds = defaultQuotesList.map((text, index) => ({
+          id: -1 - index,
+          text: text,
+          isDefault: true
+        }));
+        setQuotes(defaultWithIds);
+        setHasDefaultQuotes(true);
+      }
+    } catch (error) {
+      console.error('Error fetching quotes:', error);
+      const defaultWithIds = defaultQuotesList.map((text, index) => ({
+        id: -1 - index,
+        text: text,
+        isDefault: true
+      }));
+      setQuotes(defaultWithIds);
+      setHasDefaultQuotes(true);
+    }
+    setQuotesLoading(false);
+  };
+
+  const handleAddQuote = async () => {
+    if (!newQuote.trim()) return;
+    setSavingQuote(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/settings/quotes`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ quote: newQuote.trim() })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setQuotes([...quotes, data.quote]);
+        setNewQuote('');
+        if (hasDefaultQuotes) {
+          setHasDefaultQuotes(false);
+        }
+      } else {
+        alert(data.error || 'Error al guardar');
+      }
+    } catch (error) {
+      console.error('Error adding quote:', error);
+      alert('Error al guardar');
+    }
+    setSavingQuote(false);
+  };
+
+  const handleUpdateQuote = async (quote: { id: number; text: string }) => {
+    if (!quote.text.trim()) return;
+    setSavingQuote(true);
+    try {
+      const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+      const response = await fetch(`${API_URL}/api/settings/quotes/${quote.id}`, {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ quote: quote.text.trim() })
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setQuotes(quotes.map(q => q.id === quote.id ? data.quote : q));
+        setEditingQuote(null);
+        if (hasDefaultQuotes) {
+          setHasDefaultQuotes(false);
+        }
+      } else {
+        alert(data.error || 'Error al actualizar');
+      }
+    } catch (error) {
+      console.error('Error updating quote:', error);
+      alert('Error al actualizar');
+    }
+    setSavingQuote(false);
+  };
+
+  const handleDeleteQuote = async (id: number) => {
+    const quoteToDelete = quotes.find(q => q.id === id);
+    if (!quoteToDelete) return;
+    
+    if (!window.confirm('¿Eliminar esta frase?')) return;
+    
+    if ((quoteToDelete as any).isDefault) {
+      try {
+        const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+        const response = await fetch(`${API_URL}/api/settings/quotes`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ quote: quoteToDelete.text.trim() })
+        });
+        const data = await response.json();
+        if (response.ok) {
+          setQuotes(quotes.map(q => q.id === id ? { ...data.quote, isDefault: false } : q).filter(q => q.id !== id || (q as any).isDefault === false));
+          setHasDefaultQuotes(false);
+        } else {
+          alert(data.error || 'Error al guardar');
+        }
+      } catch (error) {
+        console.error('Error saving default quote:', error);
+        alert('Error al guardar');
+      }
+      return;
+    }
+
+    try {
+      const headers = getAuthHeaders();
+      const response = await fetch(`${API_URL}/api/settings/quotes/${id}`, { method: 'DELETE', headers });
+      if (response.ok) {
+        setQuotes(quotes.filter(q => q.id !== id));
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Error al eliminar');
+      }
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+      alert('Error al eliminar');
+    }
+  };
 
   const saveLoginSettings = async () => {
     setSavingLogin(true);
@@ -391,6 +717,10 @@ export function AdminPage() {
       setNewUserError('La contraseña debe tener al menos 4 caracteres');
       return;
     }
+    if (newUserPassword !== confirmUserPassword) {
+      setNewUserError('Las contraseñas no coinciden');
+      return;
+    }
 
     setCreating(true);
     try {
@@ -405,6 +735,7 @@ export function AdminPage() {
         setShowCreateModal(false);
         setNewUsername('');
         setNewUserPassword('');
+        setConfirmUserPassword('');
         setNewUserError('');
         fetchData();
       } else {
@@ -516,6 +847,10 @@ export function AdminPage() {
       setPasswordError('La contraseña debe tener al menos 4 caracteres');
       return;
     }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Las contraseñas no coinciden');
+      return;
+    }
 
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
@@ -528,6 +863,7 @@ export function AdminPage() {
       if (data.success) {
         setShowPasswordModal(null);
         setNewPassword('');
+        setConfirmPassword('');
         setPasswordError('');
       } else {
         setPasswordError(data.error || 'Error');
@@ -644,6 +980,42 @@ export function AdminPage() {
           <span className="hidden sm:inline">Módulos</span>
           <span className="sm:hidden text-xs">Mod</span>
         </button>
+        <button
+          onClick={() => setActiveTab('quotes')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'quotes'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Quote size={16} className="inline" />
+          <span className="hidden sm:inline">Frases</span>
+          <span className="sm:hidden text-xs">Frases</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('telegram')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'telegram'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <MessageCircle size={16} className="inline" />
+          <span className="hidden sm:inline">Telegram</span>
+          <span className="sm:hidden text-xs">TG</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('whatsapp')}
+          className={`pb-3 px-2 font-medium transition-colors flex items-center gap-1 whitespace-nowrap ${
+            activeTab === 'whatsapp'
+              ? 'text-primary border-b-2 border-primary'
+              : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          <Phone size={16} className="inline" />
+          <span className="hidden sm:inline">WhatsApp</span>
+          <span className="sm:hidden text-xs">WA</span>
+        </button>
       </div>
 
       {activeTab === 'users' && (
@@ -668,6 +1040,17 @@ export function AdminPage() {
             </div>
             <div className="p-3 bg-green-100 rounded-lg">
               <UserCheck className="text-green-600" size={20} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-lg p-4 border border-gray-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500">Conectados</p>
+              <p className="text-2xl font-bold text-blue-600">{stats.connected}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-lg">
+              <Activity className="text-blue-600" size={20} />
             </div>
           </div>
         </div>
@@ -753,6 +1136,8 @@ export function AdminPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rol</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Registrado</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Último Login</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Último Logout</th>
                 <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Acciones</th>
               </tr>
             </thead>
@@ -782,6 +1167,12 @@ export function AdminPage() {
                   <td className="px-4 py-3">{getStatusBadge(user.status)}</td>
                   <td className="px-4 py-3 text-sm text-gray-500">
                     {new Date(user.created_at).toLocaleDateString('es')}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {user.last_login ? new Date(user.last_login).toLocaleString('es') : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-500">
+                    {user.last_logout ? new Date(user.last_logout).toLocaleString('es') : '-'}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
@@ -1271,7 +1662,7 @@ export function AdminPage() {
                 <Key className="text-blue-500" size={20} />
                 Cambiar contraseña
               </h3>
-              <button onClick={() => { setShowPasswordModal(null); setNewPassword(''); setPasswordError(''); }}>
+              <button onClick={() => { setShowPasswordModal(null); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); setShowPasswordVisibility(false); setShowConfirmPasswordVisibility(false); }}>
                 <X size={24} className="text-gray-500" />
               </button>
             </div>
@@ -1280,14 +1671,40 @@ export function AdminPage() {
               Nueva contraseña para <strong>{showPasswordModal.username}</strong>
             </p>
 
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
-              placeholder="Nueva contraseña (mín. 4 caracteres)"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mb-2"
-              autoFocus
-            />
+            <div className="relative mb-3">
+              <input
+                type={showPasswordVisibility ? 'text' : 'password'}
+                value={newPassword}
+                onChange={(e) => { setNewPassword(e.target.value); setPasswordError(''); }}
+                placeholder="Nueva contraseña (mín. 4 caracteres)"
+                className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => setShowPasswordVisibility(!showPasswordVisibility)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showPasswordVisibility ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
+
+            <div className="relative mb-3">
+              <input
+                type={showConfirmPasswordVisibility ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(''); }}
+                placeholder="Confirmar contraseña"
+                className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <button
+                type="button"
+                onClick={() => setShowConfirmPasswordVisibility(!showConfirmPasswordVisibility)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+              >
+                {showConfirmPasswordVisibility ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
 
             {passwordError && (
               <p className="text-red-500 text-sm mb-4 flex items-center gap-1">
@@ -1305,7 +1722,7 @@ export function AdminPage() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => { setShowPasswordModal(null); setNewPassword(''); setPasswordError(''); }}
+                onClick={() => { setShowPasswordModal(null); setNewPassword(''); setConfirmPassword(''); setPasswordError(''); setShowPasswordVisibility(false); setShowConfirmPasswordVisibility(false); }}
                 className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
               >
                 Cancelar
@@ -1330,7 +1747,7 @@ export function AdminPage() {
                 <UserPlus className="text-primary" size={20} />
                 Crear Nuevo Usuario
               </h3>
-              <button onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setNewUserError(''); }}>
+              <button onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setConfirmUserPassword(''); setNewUserError(''); setShowNewUserPasswordVisibility(false); setShowConfirmUserPasswordVisibility(false); }}>
                 <X size={24} className="text-gray-500" />
               </button>
             </div>
@@ -1349,13 +1766,41 @@ export function AdminPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
-                <input
-                  type="password"
-                  value={newUserPassword}
-                  onChange={(e) => { setNewUserPassword(e.target.value); setNewUserError(''); }}
-                  placeholder="Mínimo 4 caracteres"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                />
+                <div className="relative">
+                  <input
+                    type={showNewUserPasswordVisibility ? 'text' : 'password'}
+                    value={newUserPassword}
+                    onChange={(e) => { setNewUserPassword(e.target.value); setNewUserError(''); }}
+                    placeholder="Mínimo 4 caracteres"
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewUserPasswordVisibility(!showNewUserPasswordVisibility)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showNewUserPasswordVisibility ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Confirmar contraseña</label>
+                <div className="relative">
+                  <input
+                    type={showConfirmUserPasswordVisibility ? 'text' : 'password'}
+                    value={confirmUserPassword}
+                    onChange={(e) => { setConfirmUserPassword(e.target.value); setNewUserError(''); }}
+                    placeholder="Repite la contraseña"
+                    className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmUserPasswordVisibility(!showConfirmUserPasswordVisibility)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showConfirmUserPasswordVisibility ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               {newUserError && (
@@ -1374,7 +1819,7 @@ export function AdminPage() {
 
             <div className="flex gap-3 mt-6">
               <button
-                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setNewUserError(''); }}
+                onClick={() => { setShowCreateModal(false); setNewUsername(''); setNewUserPassword(''); setConfirmUserPassword(''); setNewUserError(''); setShowNewUserPasswordVisibility(false); setShowConfirmUserPasswordVisibility(false); }}
                 className="flex-1 py-2 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50"
               >
                 Cancelar
@@ -1450,6 +1895,7 @@ export function AdminPage() {
                 { key: 'interesting_places', label: 'Lugares de Interés' },
                 { key: 'family_organization', label: 'Org. Familiar' },
                 { key: 'anniversaries', label: 'Aniversarios' },
+                { key: 'indulgences', label: 'Indulgencias' },
                 { key: 'family_library', label: 'Biblioteca' },
               ].map(module => {
                 const isHidden = hiddenModules.includes(module.key);
@@ -1485,6 +1931,349 @@ export function AdminPage() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'quotes' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Quote size={18} />
+              <span className="font-medium">Frases Motivacionales del Dashboard</span>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <Quote size={20} className="text-blue-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-blue-800 mb-1">Gestiona las frases del dashboard</h4>
+                  <p className="text-sm text-blue-600">
+                    Las frases predeterminadas se muestran inicialmente. Para editarlas, haz clic en el botón + (guardará la frase en la base de datos). 
+                    Luego podrás editarlas o eliminarlas normalmente.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Añadir nueva frase
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newQuote}
+                  onChange={(e) => setNewQuote(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAddQuote()}
+                  placeholder="Escribe una frase motivacional..."
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                <button
+                  onClick={handleAddQuote}
+                  disabled={!newQuote.trim() || savingQuote}
+                  className="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                >
+                  {savingQuote ? <Loader2 size={18} className="animate-spin" /> : <Plus size={18} />}
+                  Añadir
+                </button>
+              </div>
+            </div>
+
+            {quotesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="animate-spin text-primary" size={24} />
+              </div>
+            ) : quotes.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Quote size={40} className="mx-auto mb-4 text-gray-300" />
+                <p>No hay frases guardadas</p>
+                <p className="text-sm mt-1">Se mostrarán las frases predeterminadas</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {quotes.map((quote) => (
+                  <div key={quote.id} className="flex items-start gap-3 p-4 border border-gray-200 rounded-lg hover:border-gray-300 transition-colors">
+                    <Quote size={18} className="text-primary mt-1 flex-shrink-0" />
+                    {editingQuote?.id === quote.id ? (
+                      <div className="flex-1">
+                        <textarea
+                          value={editingQuote.text}
+                          onChange={(e) => setEditingQuote({ ...editingQuote, text: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary resize-none"
+                          rows={2}
+                        />
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleUpdateQuote(editingQuote)}
+                            disabled={savingQuote || !editingQuote.text.trim()}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 text-sm"
+                          >
+                            <Check size={14} />
+                            Guardar
+                          </button>
+                          <button
+                            onClick={() => setEditingQuote(null)}
+                            className="flex items-center gap-1 px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 text-sm"
+                          >
+                            <X size={14} />
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="flex-1 text-gray-700 italic">"{quote.text}"</p>
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {(quote as any).isDefault ? (
+                            <>
+                              <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded mr-2">Por defecto</span>
+                              <button
+                                onClick={() => {
+                                  setEditingQuote({ id: quote.id, text: quote.text });
+                                }}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Guardar edición en BD"
+                              >
+                                <Plus size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteQuote(quote.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => setEditingQuote({ id: quote.id, text: quote.text })}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                title="Editar"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteQuote(quote.id)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Eliminar"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'telegram' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <MessageCircle size={18} />
+              <span className="font-medium">Configuración de Notificaciones Telegram</span>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <MessageCircle size={20} className="text-cyan-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-cyan-800 mb-1">Notificaciones automáticas por Telegram</h4>
+                  <p className="text-sm text-cyan-600">
+                    Configura el bot de Telegram para recibir el resumen diario de la aplicación directamente en tu chat de Telegram.
+                    Esto es independiente de las notificaciones push o email.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {telegramMessage && (
+              <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
+                telegramMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {telegramMessage.type === 'success' ? <Check size={18} /> : <X size={18} />}
+                {telegramMessage.text}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={telegramSettings.enabled}
+                  onChange={(e) => setTelegramSettings({ ...telegramSettings, enabled: e.target.checked })}
+                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="font-medium">Activar notificaciones por Telegram</span>
+              </label>
+
+              {telegramSettings.enabled && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Token del Bot
+                    </label>
+                    <input
+                      type="password"
+                      value={telegramTokenInput === '__saved__' ? '' : telegramTokenInput}
+                      onChange={(e) => setTelegramTokenInput(e.target.value)}
+                      placeholder={telegramTokenInput === '__saved__' ? 'Token guardado' : '123456:ABC-DEF1234ghIkl-simple'}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Crea un bot con @BotFather en Telegram y pega el token aquí
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Chat ID
+                    </label>
+                    <input
+                      type="text"
+                      value={telegramSettings.chat_id}
+                      onChange={(e) => setTelegramSettings({ ...telegramSettings, chat_id: e.target.value })}
+                      placeholder="123456789"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Envía /start a @userinfobot o busca tu ID en @my_id_bot
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={testTelegram}
+                  disabled={!telegramSettings.enabled || telegramTesting}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {telegramTesting ? <Loader2 size={18} className="animate-spin" /> : <SendIcon size={18} />}
+                  Enviar prueba
+                </button>
+                <button
+                  onClick={saveTelegramSettings}
+                  disabled={telegramSaving}
+                  className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+{telegramSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'whatsapp' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 text-gray-600">
+              <Phone size={18} />
+              <span className="font-medium">Configuración de Notificaciones WhatsApp</span>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-start gap-3">
+                <Phone size={20} className="text-green-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-green-800 mb-1">Notificaciones automáticas por WhatsApp</h4>
+                  <p className="text-sm text-green-600">
+                    Configura la API de WhatsApp (Meta) para recibir el resumen diario de la aplicación directamente en WhatsApp.
+                    Requiere una cuenta de desarrollador de Meta.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {whatsappMessage && (
+              <div className={`mb-4 p-3 rounded-lg flex items-center gap-2 ${
+                whatsappMessage.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              }`}>
+                {whatsappMessage.type === 'success' ? <Check size={18} /> : <X size={18} />}
+                {whatsappMessage.text}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={whatsappSettings.enabled}
+                  onChange={(e) => setWhatsappSettings({ ...whatsappSettings, enabled: e.target.checked })}
+                  className="w-5 h-5 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <span className="font-medium">Activar notificaciones por WhatsApp</span>
+              </label>
+
+              {whatsappSettings.enabled && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Phone Number ID
+                    </label>
+                    <input
+                      type="text"
+                      value={whatsappSettings.phone_id}
+                      onChange={(e) => setWhatsappSettings({ ...whatsappSettings, phone_id: e.target.value })}
+                      placeholder="123456789012345"
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      El Phone Number ID de tu aplicación en Meta for Developers
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Token de Acceso
+                    </label>
+                    <input
+                      type="password"
+                      value={whatsappTokenInput === '__saved__' ? '' : whatsappTokenInput}
+                      onChange={(e) => setWhatsappTokenInput(e.target.value)}
+                      placeholder={whatsappTokenInput === '__saved__' ? 'Token guardado' : 'EAAR...'}
+                      className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      El Temporary Access Token de tu aplicación en Meta for Developers
+                    </p>
+                  </div>
+                </>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={testWhatsapp}
+                  disabled={!whatsappSettings.enabled || whatsappTesting}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {whatsappTesting ? <Loader2 size={18} className="animate-spin" /> : <SendIcon size={18} />}
+                  Enviar prueba
+                </button>
+                <button
+                  onClick={saveWhatsappSettings}
+                  disabled={whatsappSaving}
+                  className="flex items-center gap-2 px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {whatsappSaving ? <Loader2 size={18} className="animate-spin" /> : <Check size={18} />}
+                  Guardar
+                </button>
+              </div>
             </div>
           </div>
         </div>

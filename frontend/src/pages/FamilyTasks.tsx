@@ -156,6 +156,7 @@ export function FamilyTasks() {
   };
 
   const deleteTask = async (id: number) => {
+    if (!confirm('¿Eliminar esta tarea?')) return;
     try {
       const headers = getAuthHeaders();
       await fetch(`${API_URL}/api/tasks/${id}`, { method: 'DELETE', headers });

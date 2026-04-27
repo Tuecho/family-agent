@@ -30,6 +30,7 @@ export function Gifts() {
   const [gifts, setGifts] = useState<GiftEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<'todos' | 'idea' | 'comprado' | 'entregado'>('todos');
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<GiftForm>({
     person_name: '',
@@ -38,7 +39,7 @@ export function Gifts() {
     date: new Date().toISOString().split('T')[0],
     notes: '',
     price: 0,
-    status: 'entregado'
+    status: 'idea'
   });
 
   useEffect(() => {
@@ -80,7 +81,7 @@ export function Gifts() {
           date: new Date().toISOString().split('T')[0],
           notes: '',
           price: 0,
-          status: 'entregado'
+          status: 'idea'
         });
         fetchGifts();
       }
@@ -116,11 +117,14 @@ export function Gifts() {
     }
   };
 
-  const filteredGifts = gifts.filter(g => 
-    g.person_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    g.gift_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    g.occasion?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredGifts = gifts.filter(g => {
+    const matchesSearch = 
+      g.person_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      g.gift_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      g.occasion?.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'todos' || g.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -164,7 +168,7 @@ export function Gifts() {
                 date: new Date().toISOString().split('T')[0],
                 notes: '',
                 price: 0,
-                status: 'entregado'
+                status: 'idea'
               });
               setShowModal(true);
             }}
@@ -176,29 +180,44 @@ export function Gifts() {
         </div>
       </div>
 
-      {/* Search and Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="md:col-span-3 relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
-          <input
-            type="text"
-            placeholder="Buscar por persona, regalo u ocasión..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all shadow-sm"
-          />
-        </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-3 flex items-center justify-center gap-4 shadow-sm">
-          <div className="text-center">
-            <p className="text-xs text-gray-500 uppercase font-bold">Total</p>
-            <p className="text-xl font-black text-amber-600">{gifts.length}</p>
-          </div>
-          <div className="w-px h-8 bg-gray-100"></div>
-          <div className="text-center">
-            <p className="text-xs text-gray-500 uppercase font-bold">Ideas</p>
-            <p className="text-xl font-black text-amber-600">{gifts.filter(g => g.status === 'idea').length}</p>
-          </div>
-        </div>
+      {/* Filter Tabs */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setFilterStatus('todos')}
+          className={`px-4 py-2 rounded-xl font-bold transition-all ${filterStatus === 'todos' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+        >
+          Todos ({gifts.length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('idea')}
+          className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${filterStatus === 'idea' ? 'bg-amber-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+        >
+          <Lightbulb size={16} /> Ideas ({gifts.filter(g => g.status === 'idea').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('comprado')}
+          className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${filterStatus === 'comprado' ? 'bg-blue-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+        >
+          <Clock size={16} /> Comprados ({gifts.filter(g => g.status === 'comprado').length})
+        </button>
+        <button
+          onClick={() => setFilterStatus('entregado')}
+          className={`px-4 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${filterStatus === 'entregado' ? 'bg-green-500 text-white' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
+        >
+          <CheckCircle2 size={16} /> Entregados ({gifts.filter(g => g.status === 'entregado').length})
+        </button>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+        <input
+          type="text"
+          placeholder="Buscar por persona, regalo u ocasión..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-12 pr-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all shadow-sm"
+        />
       </div>
 
       {/* Gifts List */}

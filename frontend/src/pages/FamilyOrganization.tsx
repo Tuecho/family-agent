@@ -40,10 +40,9 @@ interface MemberPoints {
   week_points: number;
 }
 
-interface FamilyMember {
+interface User {
   id: number;
-  name: string;
-  age_group: string;
+  username: string;
 }
 
 const CHORE_CATEGORIES = [
@@ -69,7 +68,7 @@ export function FamilyOrganization() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [memberPoints, setMemberPoints] = useState<MemberPoints[]>([]);
-  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [familyMembers, setFamilyMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showChoreModal, setShowChoreModal] = useState(false);
   const [showRewardModal, setShowRewardModal] = useState(false);
@@ -105,7 +104,7 @@ export function FamilyOrganization() {
         fetch(`${API_URL}/api/family/chore-assignments`, { headers }),
         fetch(`${API_URL}/api/family/rewards`, { headers }),
         fetch(`${API_URL}/api/family/member-points`, { headers }),
-        fetch(`${API_URL}/api/family-members`, { headers }),
+        fetch(`${API_URL}/api/users`, { headers }),
       ]);
       
       const choresData = await choresRes.json();
@@ -587,7 +586,7 @@ export function FamilyOrganization() {
                   )}
                   {familyMembers.length > 0 && gamificationEnabled && (
                     <div className="flex flex-wrap gap-2">
-                      {familyMembers.filter(m => m.age_group === 'child').map((member) => {
+                      {familyMembers.map((member) => {
                         const mp = memberPoints.find(p => p.member_id === member.id);
                         const canRedeem = mp && mp.total_points >= reward.points_required;
                         return (
@@ -601,7 +600,7 @@ export function FamilyOrganization() {
                                 : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             }`}
                           >
-                            {member.name} {canRedeem ? '🎉' : `(${(mp?.total_points || 0)}/${reward.points_required})`}
+                            {member.username} {canRedeem ? '🎉' : `(${(mp?.total_points || 0)}/${reward.points_required})`}
                           </button>
                         );
                       })}
@@ -692,7 +691,7 @@ export function FamilyOrganization() {
                           }}
                           className="w-4 h-4 text-emerald-600 rounded"
                         />
-                        <span>{member.name}</span>
+                        <span>{member.username}</span>
                       </label>
                     ))}
                   </div>

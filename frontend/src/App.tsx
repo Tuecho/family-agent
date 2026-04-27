@@ -40,11 +40,12 @@ import { ModuleManager } from './pages/ModuleManager';
 import { WorkHours } from './pages/WorkHours';
 import { SitesOfInterest } from './pages/SitesOfInterest';
 import { FamilyOrganization } from './pages/FamilyOrganization';
+import Indulgences from './pages/Indulgences';
 import { ChatWidget } from './components/ChatWidget';
 import { Login, useAuth, AuthProvider } from './components/Auth';
 import { Menu, X } from 'lucide-react';
 
-type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization';
+type PageType = 'dashboard' | 'accounting' | 'budgets' | 'profile' | 'agenda' | 'shopping' | 'tasks' | 'notes' | 'admin' | 'about' | 'restaurants' | 'howitworks' | 'gallery' | 'contacts' | 'terms' | 'privacy' | 'contact' | 'meals' | 'birthdays' | 'anniversaries' | 'books_movies' | 'chatbot' | 'sales' | 'gifts' | 'habits' | 'home_inventory' | 'home_maintenance' | 'subscriptions' | 'pet_tracker' | 'travel_manager' | 'savings_goals' | 'internal_debts' | 'utility_bills' | 'family_library' | 'extra_school' | 'modules' | 'work_hours' | 'interesting_places' | 'family_organization' | 'indulgences';
 
 function AppContent() {
   const [activePage, setActivePage] = useState<PageType>(() => {
@@ -199,6 +200,7 @@ function AppContent() {
           {activePage === 'work_hours' && <WorkHours />}
           {activePage === 'interesting_places' && <SitesOfInterest />}
           {activePage === 'family_organization' && <FamilyOrganization />}
+          {activePage === 'indulgences' && <Indulgences />}
         </div>
       </main>
 

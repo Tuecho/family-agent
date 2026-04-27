@@ -7,7 +7,7 @@ import { ImportExcel } from '../components/ImportExcel';
 import { ImportPDF } from '../components/ImportPDF';
 
 export function Accounting() {
-  const { transactions, concepts, fetchConcepts, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, fetchTransactions, loading, selectedMonth, selectedYear, addConcept, updateConceptLabel, deleteConcept } = useStore();
+  const { transactions, concepts, fetchConcepts, fetchTransactions, addTransaction, updateTransaction, deleteTransaction, getMonthlyTransactions, loading, selectedMonth, selectedYear, addConcept, updateConceptLabel, deleteConcept } = useStore();
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [filterConcept, setFilterConcept] = useState<string>('all');
@@ -22,7 +22,8 @@ export function Accounting() {
 
   useEffect(() => {
     fetchConcepts();
-  }, [fetchConcepts]);
+    fetchTransactions({ month: selectedMonth, year: selectedYear });
+  }, [fetchConcepts, fetchTransactions, selectedMonth, selectedYear]);
 
   const slugifyKey = (text: string) => {
     return text.toLowerCase()
