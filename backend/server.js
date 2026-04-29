@@ -912,7 +912,7 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
       owner_id INTEGER NOT NULL UNIQUE,
       daily_target_hours REAL DEFAULT 8,
       work_days TEXT DEFAULT '1,2,3,4,5',
-      weekly_target_hours REAL DEFAULT 40,
+      weekly_target_hours REAL DEFAULT 0,
       accumulated_hours REAL DEFAULT 0,
       alert_on_overtime INTEGER DEFAULT 1,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -920,8 +920,9 @@ try { db.run(`ALTER TABLE meal_plans ADD COLUMN owner_id INTEGER DEFAULT 1`); } 
     )
   `);
 
-  try { db.run(`ALTER TABLE work_settings ADD COLUMN weekly_target_hours REAL DEFAULT 40`); } catch(e) {}
+  try { db.run(`ALTER TABLE work_settings ADD COLUMN weekly_target_hours REAL DEFAULT 0`); } catch(e) {}
   try { db.run(`ALTER TABLE work_settings ADD COLUMN accumulated_hours REAL DEFAULT 0`); } catch(e) {}
+  try { db.run(`ALTER TABLE work_settings ADD COLUMN last_overtime_update TEXT`); } catch(e) {}
 
   db.run(`
     CREATE TABLE IF NOT EXISTS internal_debts (
@@ -1357,12 +1358,24 @@ app.put('/api/concepts/:key', (req, res) => {
 app.delete('/api/concepts/:key', (req, res) => {
   const { key } = req.params;
 
+  const conceptStmt = db.prepare('SELECT label FROM expense_concepts WHERE key = ?');
+  conceptStmt.bind([key]);
+  let conceptLabel = null;
+  if (conceptStmt.step()) {
+    conceptLabel = conceptStmt.getAsObject().label;
+  }
+  conceptStmt.free();
+
+  if (!conceptLabel) {
+    return res.status(404).json({ error: 'Concepto no encontrado' });
+  }
+
   const usedStmt = db.prepare(`
     SELECT
-      (SELECT COUNT(1) FROM transactions WHERE concept = ?) as tx_count,
-      (SELECT COUNT(1) FROM budgets WHERE concept = ?) as budget_count
+      (SELECT COUNT(1) FROM transactions WHERE concept = ? OR concept = ?) as tx_count,
+      (SELECT COUNT(1) FROM budgets WHERE concept = ? OR concept = ?) as budget_count
   `);
-  usedStmt.bind([key, key]);
+  usedStmt.bind([key, conceptLabel, key, conceptLabel]);
   usedStmt.step();
   const used = usedStmt.getAsObject();
   usedStmt.free();
@@ -1370,7 +1383,7 @@ app.delete('/api/concepts/:key', (req, res) => {
   const txCount = used.tx_count || 0;
   const budgetCount = used.budget_count || 0;
   if (txCount > 0 || budgetCount > 0) {
-    return res.status(409).json({ error: 'No se puede eliminar: el concepto está en uso' });
+    return res.status(409).json({ error: `No se puede eliminar: el concepto está en uso (${txCount} transacciones, ${budgetCount} presupuestos). Cambia primero los registros asociados.` });
   }
 
   try {
@@ -2322,6 +2335,18 @@ app.put('/api/transactions/:id', (req, res) => {
   if (!type || typeof amount !== 'number' || !description || !date) {
     return res.status(400).json({ error: 'Faltan campos obligatorios' });
   }
+
+  if (type !== 'income' && type !== 'expense') {
+    return res.status(400).json({ error: 'Tipo inválido' });
+  }
+
+  const existsStmt = db.prepare('SELECT id FROM transactions WHERE id = ? AND owner_id = ?');
+  existsStmt.bind([id, userId]);
+  if (!existsStmt.step()) {
+    existsStmt.free();
+    return res.status(404).json({ error: 'Transacción no encontrada' });
+  }
+  existsStmt.free();
 
   const stmt = db.prepare(`
     UPDATE transactions
@@ -4609,7 +4634,7 @@ app.put('/api/work-settings', (req, res) => {
   const { daily_target_hours, work_days, weekly_target_hours, alert_on_overtime } = req.body;
   
   db.run('UPDATE work_settings SET daily_target_hours = ?, work_days = ?, weekly_target_hours = ?, alert_on_overtime = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
-    [daily_target_hours || 2, work_days || '1,2,3,4,5', weekly_target_hours || 40, alert_on_overtime !== false ? 1 : 0, userId]);
+    [daily_target_hours || 2, work_days || '1,2,3,4,5', weekly_target_hours || 0, alert_on_overtime !== false ? 1 : 0, userId]);
   saveDb();
   res.json({ success: true });
 });
@@ -4641,30 +4666,43 @@ app.get('/api/work-hours/accumulated', (req, res) => {
   const dailyTarget = settings?.daily_target_hours || 2;
   const workDays = (settings?.work_days || '0,1,2,3,4,5,6').split(',');
   const workDaysCount = workDays.length;
-  const weeklyTarget = dailyTarget * workDaysCount;
+  const calculatedWeeklyTarget = dailyTarget * workDaysCount;
+  const weeklyTarget = (settings?.weekly_target_hours && settings.weekly_target_hours > 0) ? settings.weekly_target_hours : calculatedWeeklyTarget;
   const currentAccumulated = settings?.accumulated_hours || 0;
   
+  console.log('Work hours debug:', { dailyTarget, workDaysCount, calculatedWeeklyTarget, weeklyTarget: settings?.weekly_target_hours, currentAccumulated });
+  
   const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
   const dayOfWeek = today.getDay();
   const monday = new Date(today);
   monday.setDate(today.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
   const weekStart = monday.toISOString().split('T')[0];
   
-  const weekStmt = db.prepare('SELECT SUM(hours_worked) as week_hours FROM work_shifts WHERE owner_id = ? AND date >= ? AND hours_worked IS NOT NULL');
-  weekStmt.bind([userId, weekStart]);
+  console.log('Week:', { weekStart, todayStr, dayOfWeek });
+  
+  const weekStmt = db.prepare('SELECT SUM(hours_worked) as week_hours FROM work_shifts WHERE owner_id = ? AND date >= ? AND date <= ? AND hours_worked IS NOT NULL');
+  weekStmt.bind([userId, weekStart, todayStr]);
   let weekHours = 0;
   if (weekStmt.step()) {
     weekHours = weekStmt.getAsObject().week_hours || 0;
   }
   weekStmt.free();
   
+  console.log('Week hours:', weekHours);
+  
   const weekOvertime = Math.max(0, weekHours - weeklyTarget);
   
-  const newAccumulated = Math.max(0, currentAccumulated + weekOvertime);
+  const lastUpdate = settings?.last_overtime_update;
+  const currentWeek = monday.toISOString().split('T')[0];
   
-  db.run('UPDATE work_settings SET accumulated_hours = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
-    [newAccumulated, userId]);
-  saveDb();
+  let newAccumulated = currentAccumulated;
+  if (lastUpdate !== currentWeek && weekOvertime > 0) {
+    newAccumulated = Math.max(0, currentAccumulated + weekOvertime);
+    db.run('UPDATE work_settings SET accumulated_hours = ?, last_overtime_update = ?, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
+      [newAccumulated, currentWeek, userId]);
+    saveDb();
+  }
   
   res.json({
     weekly_target: weeklyTarget,
@@ -4684,6 +4722,16 @@ app.post('/api/work-hours/update-accumulated', (req, res) => {
     [accumulated_hours || 0, userId]);
   saveDb();
   res.json({ success: true, accumulated_hours });
+});
+
+app.post('/api/work-hours/reset-accumulated', (req, res) => {
+  const userId = getCurrentUserId(req.headers);
+  if (!userId) return res.status(401).json({ error: 'No autorizado' });
+  
+  db.run('UPDATE work_settings SET accumulated_hours = 0, updated_at = CURRENT_TIMESTAMP WHERE owner_id = ?', 
+    [userId]);
+  saveDb();
+  res.json({ success: true, accumulated_hours: 0 });
 });
 
 app.post('/api/work-hours/send-email', async (req, res) => {

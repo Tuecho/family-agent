@@ -107,6 +107,7 @@ export function WorkHours() {
   const [settingsForm, setSettingsForm] = useState({
     daily_target_hours: 2,
     work_days: '0,1,2,3,4,5,6',
+    weekly_target_hours: 0,
     alert_on_overtime: true
   });
 
@@ -158,6 +159,7 @@ export function WorkHours() {
     setSettingsForm({
       daily_target_hours: settingsData.daily_target_hours || 2,
       work_days: settingsData.work_days || '0,1,2,3,4,5,6',
+      weekly_target_hours: settingsData.weekly_target_hours || 0,
       alert_on_overtime: settingsData.alert_on_overtime !== 0
     });
     
@@ -547,6 +549,20 @@ export function WorkHours() {
                   +{formatHours(accumulatedData.week_overtime)} añadido esta semana
                 </div>
               )}
+              <button
+                onClick={async () => {
+                  if (!confirm('¿Resetear las horas acumuladas a 0?')) return;
+                  const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
+                  await fetch(`${API_URL}/api/work-hours/reset-accumulated`, {
+                    method: 'POST',
+                    headers
+                  });
+                  fetchData();
+                }}
+                className="mt-3 w-full py-2 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+              >
+                Resetear acumuladas
+              </button>
             </div>
           </div>
 
@@ -662,9 +678,23 @@ export function WorkHours() {
                       </button>
                     );
                   })}
-                </div>
+</div>
               </div>
               
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Meta semanal (horas)</label>
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  max="80"
+                  value={settingsForm.weekly_target_hours}
+                  onChange={(e) => setSettingsForm({ ...settingsForm, weekly_target_hours: parseInt(e.target.value) || 0 })}
+                  className="w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">Dejar en 0 para usar cálculo automático (diaria × días = 10h)</p>
+              </div>
+               
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">Alertar si excedes horas</span>
                 <button

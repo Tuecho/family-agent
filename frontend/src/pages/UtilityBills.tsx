@@ -327,6 +327,16 @@ export function UtilityBills() {
               </select>
             </div>
           </div>
+          {filterType !== 'all' && (
+            <div className="bg-gray-100 rounded-lg p-3 flex items-center justify-between">
+              <span className="text-sm text-gray-600">
+                Total {getTypeLabel(filterType)}:
+              </span>
+              <span className="text-lg font-bold text-gray-800">
+                {bills.filter(b => b.type === filterType).reduce((sum, b) => sum + b.amount, 0).toFixed(2)}€
+              </span>
+            </div>
+          )}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">

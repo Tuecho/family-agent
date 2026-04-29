@@ -483,6 +483,14 @@ Los usuarios pueden compartir sus datos con familiares:
 
 ## Changelog
 
+### v1.0.9 (Abril 2026)
+- Módulo de Horas de Trabajo corregido:
+  - Botón para resetear horas acumuladas
+  - Meta semanal configurable manualmente (dejar en 0 para cálculo automático)
+  - Corrección: las horas acumuladas ahora se calculan correctamente (solo una vez por semana)
+  - Mostrar meta semanal en la UI
+  - Cálculo automático: horas_diarias × días_laborales (por defecto 2h × 5 días = 10h)
+
 ### v1.0.8 (Abril 2026)
 - Dashboard siempre visible (no se puede desactivar)
 - 8 módulos activos por defecto: Dashboard, Agenda, Contabilidad, Cumpleaños, Hábitos, Lista Compra, Notas, Tareas

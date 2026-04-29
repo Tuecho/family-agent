@@ -6,7 +6,7 @@
 - **Type**: Full-stack Web Application
 - **Core Functionality**: Complete family management system with accounting, agenda, tasks, meal planning, habits, inventory, and AI-powered chatbot
 - **Target Users**: Families wanting to organize finances, schedules, tasks, and household management
-- **Current Version**: 1.0.8 (April 2026)
+- **Current Version**: 1.0.9 (April 2026)
 
 ---
 
@@ -276,9 +276,11 @@ family-agent/
 
 19. **Work Hours** (`WorkHours.tsx`)
     - Shift tracking (start/end)
-    - Weekly/monthly targets
-    - Accumulated hours
-    - Report generation
+    - Weekly target configuration
+    - Manual weekly target (set to 0 for auto-calculation: daily × days)
+    - Accumulated hours (overtime from each week added once)
+    - Reset accumulated button
+    - Report generation (WhatsApp/Telegram/Email)
 
 20. **Meal Planning** (`MealPlanning.tsx`)
     - Recipe management
@@ -533,3 +535,26 @@ Users can share specific data types with other users:
 - [ ] Passwords are hashed
 - [ ] Sessions expire after 5 minutes
 - [ ] Users only see their own data
+
+---
+
+## Changelog
+
+### v1.0.9 (April 2026)
+- Work Hours module fixed:
+  - Added "Reset accumulated" button
+  - Manual weekly target configurable (set to 0 for auto-calculation)
+  - Fixed: accumulated hours now calculated correctly (once per week only)
+  - Default calculation: daily_hours × work_days (2h × 5 days = 10h)
+  - Added field `last_overtime_update` to prevent duplicate overtime adding
+  - Default `weekly_target_hours` changed from 40 to 0 (auto-calculation)
+
+### v1.0.8 (April 2026)
+- Dashboard always visible
+- 8 default active modules
+- Drag and drop module reordering
+- Mobile-first design improvements
+- Habit tracking module
+- Work hours tracking module
+- Places of interest module
+- Web push notifications

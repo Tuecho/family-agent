@@ -183,17 +183,23 @@ export const useStore = create<AppState>((set, get) => ({
   updateTransaction: async (transaction) => {
     try {
       const headers = { ...getAuthHeaders(), 'Content-Type': 'application/json' };
-      await fetch(`${API_URL}/api/transactions/${transaction.id}`, {
+      const response = await fetch(`${API_URL}/api/transactions/${transaction.id}`, {
         method: 'PUT',
         headers,
         body: JSON.stringify(transaction)
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Error al actualizar transacción');
+      }
 
       set((state) => ({
         transactions: state.transactions.map((t) => (t.id === transaction.id ? transaction : t))
       }));
     } catch (error) {
       console.error('Error updating transaction:', error);
+      throw error;
     }
   },
 
