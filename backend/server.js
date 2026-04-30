@@ -32,15 +32,15 @@ const ALL_TABLES = [
   'auth_user', 'user_profile', 'transactions', 'budgets', 'family_events', 
   'expense_concepts', 'family_tasks', 'family_members', 'birthdays', 
   'family_notes', 'note_boards', 'shopping_lists', 'shopping_items',
-  'family_contacts', 'family_gifts', 'books', 'movies', 
+  'family_contacts', 'family_gifts', 'books', 'movies', 'custom_genres',
   'favorite_restaurants', 'recipes', 'meal_plans', 'family_gallery',
   'invitations', 'user_shares', 'habits', 'habit_logs', 'habit_categories',
-  'home_inventory', 'home_inventory_categories', 'home_maintenance', 'subscriptions',
+  'home_inventory', 'home_inventory_categories', 'home_maintenance', 'subscriptions', 'subscription_categories',
   'pet_tracker', 'pet_vaccines', 'pet_medications',
-  'travel_manager', 'trip_members', 'trip_activities', 'savings_pigs', 'savings_goals', 
+  'travel_manager', 'trip_members', 'trip_activities', 'packing_lists', 'savings_pigs', 'savings_goals', 
   'internal_debts', 'utility_bills', 'family_library', 'extra_school_manager',
   'work_shifts', 'work_settings', 'interesting_places', 'anniversaries', 'indulgences',
-  'password_reset_codes', 'app_settings', 'notification_settings', 'global_module_settings',
+  'password_reset_codes', 'app_settings', 'notification_settings', 'global_module_settings', 'llm_settings',
   'household_chores', 'chore_assignments', 'family_rewards', 'reward_earnings', 'member_points',
   'faqs', 'suggestions', 'contact_messages', 'sales_contacts'
 ];
@@ -1343,10 +1343,21 @@ app.put('/api/concepts/:key', (req, res) => {
     return res.status(400).json({ error: 'Nombre inválido (mínimo 2 caracteres)' });
   }
 
+  const newLabel = label.trim();
+
   try {
-    const stmt = db.prepare('UPDATE expense_concepts SET label = ? WHERE key = ?');
-    stmt.run([label.trim(), key]);
-    stmt.free();
+    const existingStmt = db.prepare('SELECT key FROM expense_concepts WHERE LOWER(label) = LOWER(?) AND key != ?');
+    existingStmt.bind([newLabel, key]);
+    if (existingStmt.step()) {
+      existingStmt.free();
+      return res.status(400).json({ error: 'Ya existe un concepto con ese nombre' });
+    }
+    existingStmt.free();
+
+    const updateStmt = db.prepare('UPDATE expense_concepts SET label = ? WHERE key = ?');
+    updateStmt.run([newLabel, key]);
+    updateStmt.free();
+
     saveDb();
     return res.json({ success: true });
   } catch (error) {

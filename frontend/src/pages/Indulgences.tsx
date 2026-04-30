@@ -19,8 +19,8 @@ export default function Indulgences() {
   });
 
   const types = [
-    { value: 'plenary', label: 'Plenaria', description: 'Indulgencia plenaria - remission completa de penas' },
-    { value: 'partial', label: 'Parcial', description: 'Indulgencia parcial - remission parcial de penas' }
+    { value: 'plenary', label: 'Plenaria' },
+    { value: 'partial', label: 'Parcial' }
   ];
 
   useEffect(() => {
@@ -152,6 +152,15 @@ export default function Indulgences() {
             Indulgencias
           </h1>
           <p className="text-gray-500 text-sm mt-1">Fechas de indulgencias para los próximos 15 días</p>
+          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-amber-800 text-xs font-semibold mb-1">¿Cómo obtener la indulgencia plenaria?</p>
+            <p className="text-amber-700 text-xs">Además del acto específico, se deben cumplir:</p>
+            <ul className="text-amber-700 text-xs mt-1 list-disc list-inside">
+              <li>Confesión individual e íntegra</li>
+              <li>Comunión eucarística</li>
+              <li>Rezar por las intenciones del Papa</li>
+            </ul>
+          </div>
         </div>
         <button
           type="button"
@@ -327,7 +336,7 @@ export default function Indulgences() {
                   >
                     {types.map((t) => (
                       <option key={t.value} value={t.value}>
-                        {t.label} - {t.description}
+                        {t.label}
                       </option>
                     ))}
                   </select>

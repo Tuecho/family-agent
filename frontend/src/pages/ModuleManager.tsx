@@ -38,6 +38,7 @@ const MODULE_LIST = [
   { key: 'interesting_places', label: 'Lugares de Interés', icon: '📍' },
   { key: 'family_organization', label: 'Org. Familiar', icon: '👨‍👩‍👧‍👦' },
   { key: 'anniversaries', label: 'Aniversarios', icon: '🗓️' },
+  { key: 'indulgences', label: 'Indulgencias', icon: '🕊️' },
 ].sort((a, b) => a.label.localeCompare(b.label));
 
 const DEFAULT_MODULES = ['dashboard', 'agenda', 'accounting', 'birthdays', 'anniversaries', 'habits', 'shopping', 'notes', 'tasks'];
